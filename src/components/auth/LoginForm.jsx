@@ -235,7 +235,7 @@ const LoginForm = () => {
         {view === "signup" && (
           <div className="auth-card bg-[var(--secondary-dark)] p-8 rounded-xl shadow-2xl transition-opacity duration-300 max-h-[90vh] overflow-y-auto">
             <h1 className="text-4xl font-extrabold mb-1 text-[var(--accent-color)] text-center">
-              Student Registration
+              Students Registration
             </h1>
             <p className="text-sm mb-6 opacity-70 text-center">
               Create your student account to access events and activities.
