@@ -28,9 +28,12 @@ const FacultyDashboard = () => {
       const user = JSON.parse(localStorage.getItem("user") || "{}");
 
       // Fetch events created by this faculty
-      const eventsRes = await axios.get("http://localhost:5000/api/events", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const eventsRes = await axios.get(
+        "https://clg-managemt-backend.onrender.com/api/events",
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
 
       const allEvents = eventsRes.data || [];
 
@@ -42,9 +45,12 @@ const FacultyDashboard = () => {
       );
 
       // Fetch tasks for stats
-      const tasksRes = await axios.get("http://localhost:5000/api/tasks", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const tasksRes = await axios.get(
+        "https://clg-managemt-backend.onrender.com/api/tasks",
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
 
       const allTasks = tasksRes.data || [];
       const myTasks = allTasks.filter((t) =>

@@ -39,16 +39,22 @@ const AdminDashboard = () => {
       const token = localStorage.getItem("token");
 
       // Fetch events
-      const eventsRes = await axios.get("http://localhost:5000/api/events", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const eventsRes = await axios.get(
+        "https://clg-managemt-backend.onrender.com/api/events",
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
 
       const events = eventsRes.data || [];
 
       // Fetch users
-      const usersRes = await axios.get("http://localhost:5000/api/users", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const usersRes = await axios.get(
+        "https://clg-managemt-backend.onrender.com/api/users",
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
 
       const users = usersRes.data || [];
 

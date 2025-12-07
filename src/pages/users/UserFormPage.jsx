@@ -29,9 +29,12 @@ const UserFormPage = () => {
   const fetchUser = async () => {
     try {
       const token = localStorage.getItem("token");
-      const res = await axios.get(`http://localhost:5000/api/users/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await axios.get(
+        `https://clg-managemt-backend.onrender.com/api/users/${id}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
       setFormData({ ...res.data, Password: "" });
     } catch (err) {
       console.error("Failed to fetch user", err);
@@ -58,7 +61,7 @@ const UserFormPage = () => {
       console.log("Creating HOD account:", userData);
 
       const res = await axios.post(
-        "http://localhost:5000/api/users/create",
+        "https://clg-managemt-backend.onrender.com/api/users/create",
         userData,
         {
           headers: {

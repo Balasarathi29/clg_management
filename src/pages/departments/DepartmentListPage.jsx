@@ -14,9 +14,12 @@ const DepartmentListPage = () => {
   const fetchDepartments = async () => {
     try {
       const token = localStorage.getItem("token");
-      const res = await axios.get("http://localhost:5000/api/departments", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await axios.get(
+        "https://clg-managemt-backend.onrender.com/api/departments",
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
       setDepartments(res.data);
     } catch (err) {
       console.error("Failed to fetch departments", err);
@@ -31,9 +34,12 @@ const DepartmentListPage = () => {
 
     try {
       const token = localStorage.getItem("token");
-      await axios.delete(`http://localhost:5000/api/departments/${deptId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await axios.delete(
+        `https://clg-managemt-backend.onrender.com/api/departments/${deptId}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
       fetchDepartments();
     } catch (err) {
       console.error("Failed to delete department", err);

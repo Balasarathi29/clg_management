@@ -25,9 +25,12 @@ const DepartmentFormPage = () => {
   const fetchHODUsers = async () => {
     try {
       const token = localStorage.getItem("token");
-      const res = await axios.get("http://localhost:5000/api/users?role=hod", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await axios.get(
+        "https://clg-managemt-backend.onrender.com/api/users?role=hod",
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
       setHodUsers(res.data || []);
     } catch (err) {
       console.error("Failed to fetch HOD users", err);
@@ -38,7 +41,7 @@ const DepartmentFormPage = () => {
     try {
       const token = localStorage.getItem("token");
       const res = await axios.get(
-        `http://localhost:5000/api/departments/${id}`,
+        `https://clg-managemt-backend.onrender.com/api/departments/${id}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
@@ -61,16 +64,20 @@ const DepartmentFormPage = () => {
       if (id) {
         // Update existing department
         await axios.put(
-          `http://localhost:5000/api/departments/${id}`,
+          `https://clg-managemt-backend.onrender.com/api/departments/${id}`,
           formData,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         alert("Department updated successfully!");
       } else {
         // Create new department
-        await axios.post("http://localhost:5000/api/departments", formData, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        await axios.post(
+          "https://clg-managemt-backend.onrender.com/api/departments",
+          formData,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
         alert("Department created successfully!");
       }
 

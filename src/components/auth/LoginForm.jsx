@@ -2,8 +2,8 @@ import React, { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
-// set backend base URL (ensure this matches your server)
-axios.defaults.baseURL = "http://localhost:5000";
+// set backend base URL to Render deployment
+axios.defaults.baseURL = "https://clg-managemt-backend.onrender.com";
 axios.defaults.headers.post["Content-Type"] = "application/json";
 
 const LoginForm = () => {
