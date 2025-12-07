@@ -1,6 +1,6 @@
 const axios = require("axios");
 
-const BASE_URL = "https://clg-managemt-backend.onrender.com";
+const BASE_URL = "http://localhost:5000";
 
 async function testAPIs() {
   console.log("🧪 Testing College Management APIs\n");

@@ -40,12 +40,9 @@ const EventFormPage = () => {
   const fetchDepartments = async () => {
     try {
       const token = localStorage.getItem("token");
-      const res = await axios.get(
-        "https://clg-managemt-backend.onrender.com/api/departments",
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      const res = await axios.get("http://localhost:5000/api/departments", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       setDepartments(res.data);
     } catch (err) {
       console.error("Failed to fetch departments", err);
@@ -66,12 +63,9 @@ const EventFormPage = () => {
   const fetchEvent = async () => {
     try {
       const token = localStorage.getItem("token");
-      const res = await axios.get(
-        `https://clg-managemt-backend.onrender.com/api/events/${id}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      const res = await axios.get(`http://localhost:5000/api/events/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const eventData = res.data;
       setFormData({
         ...eventData,
@@ -123,8 +117,8 @@ const EventFormPage = () => {
       console.log("Submitting event with data:", eventData);
 
       const url = isEdit
-        ? `https://clg-managemt-backend.onrender.com/api/events/${id}`
-        : "https://clg-managemt-backend.onrender.com/api/events";
+        ? `http://localhost:5000/api/events/${id}`
+        : "http://localhost:5000/api/events";
 
       const method = isEdit ? "put" : "post";
 

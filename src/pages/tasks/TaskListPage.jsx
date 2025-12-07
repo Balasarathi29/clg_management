@@ -18,12 +18,9 @@ const TaskListPage = () => {
       const token = localStorage.getItem("token");
       const user = JSON.parse(localStorage.getItem("user") || "{}");
 
-      const res = await axios.get(
-        "https://clg-managemt-backend.onrender.com/api/tasks",
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      const res = await axios.get("http://localhost:5000/api/tasks", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
       const allTasks = res.data || [];
       console.log("All tasks fetched:", allTasks.length);
@@ -57,12 +54,9 @@ const TaskListPage = () => {
 
     try {
       const token = localStorage.getItem("token");
-      await axios.delete(
-        `https://clg-managemt-backend.onrender.com/api/tasks/${taskId}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      await axios.delete(`http://localhost:5000/api/tasks/${taskId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       alert("Task deleted successfully");
       fetchTasks(); // Refresh list
     } catch (err) {
@@ -75,7 +69,7 @@ const TaskListPage = () => {
     try {
       const token = localStorage.getItem("token");
       await axios.patch(
-        `https://clg-managemt-backend.onrender.com/api/tasks/${taskId}/status`,
+        `http://localhost:5000/api/tasks/${taskId}/status`,
         { status: newStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );
