@@ -1,344 +1,330 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   FiUsers,
   FiCalendar,
-  FiCheckSquare,
-  FiUserCheck,
+  FiUserPlus,
+  FiEdit2,
+  FiTrash2,
 } from "react-icons/fi";
-
-const StatCard = ({ icon: IconComponent, title, value, color }) => (
-  <div className="bg-gray-800 p-6 rounded-lg shadow-lg">
-    <div className="flex items-center justify-between mb-2">
-      <IconComponent className={`w-8 h-8 ${color}`} />
-      <span className="text-3xl font-bold text-white">{value}</span>
-    </div>
-    <p className="text-gray-400 text-sm">{title}</p>
-  </div>
-);
+import API_URL from "../../config/api";
 
 const HODDashboard = () => {
+  const navigate = useNavigate();
   const [stats, setStats] = useState({
-    pendingApprovals: 0,
+    totalFaculty: 0,
     totalEvents: 0,
-    facultyCount: 0,
-    studentCount: 0,
   });
-  const [pendingEvents, setPendingEvents] = useState([]);
+  const [faculty, setFaculty] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedEvent, setSelectedEvent] = useState(null);
-  const [processing, setProcessing] = useState(false);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [formData, setFormData] = useState({
+    First_name: "",
+    Last_name: "",
+    Email: "",
+    Password: "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
+  const department = user.Department;
 
   useEffect(() => {
-    fetchDashboardData();
+    fetchData();
   }, []);
 
-  const fetchDashboardData = async () => {
+  const fetchData = async () => {
     try {
       const token = localStorage.getItem("token");
-      const user = JSON.parse(localStorage.getItem("user") || "{}");
 
-      // Fetch events
-      const eventsRes = await axios.get("http://localhost:5000/api/events", {
+      // Fetch all users and filter faculty in HOD's department
+      const usersRes = await axios.get(`${API_URL}/api/users`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      const allEvents = eventsRes.data || [];
-      const departmentEvents = allEvents.filter(
-        (e) =>
-          e.departmentId === user.Department ||
-          e.departmentName === user.Department ||
-          e.Department === user.Department
+      const departmentFaculty = usersRes.data.filter(
+        (u) => u.role === "faculty" && u.Department === department
       );
 
-      // Only show PENDING events in dashboard (first-time review)
-      const pendingForReview = departmentEvents.filter(
-        (e) => e.status === "Pending"
-      );
-
-      // Fetch users
-      const usersRes = await axios.get("http://localhost:5000/api/users", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      const allUsers = usersRes.data || [];
-      const departmentUsers = allUsers.filter(
-        (u) => u.Department === user.Department
-      );
-
+      setFaculty(departmentFaculty);
       setStats({
-        pendingApprovals: pendingForReview.length, // Only pending events count
-        totalEvents: departmentEvents.length,
-        facultyCount: departmentUsers.filter((u) => u.role === "faculty")
-          .length,
-        studentCount: departmentUsers.filter((u) => u.role === "student")
-          .length,
+        totalFaculty: departmentFaculty.length,
+        totalEvents: 0, // Can be fetched from events API
       });
-
-      // Only show pending events in dashboard list
-      setPendingEvents(pendingForReview.slice(0, 5));
     } catch (err) {
-      console.error("Failed to fetch dashboard data", err);
+      console.error("Failed to fetch data", err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleApprove = async (eventId) => {
-    if (!window.confirm("Are you sure you want to approve this event?")) return;
+  const handleCreateFaculty = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setError("");
 
-    setProcessing(true);
     try {
       const token = localStorage.getItem("token");
-      await axios.put(
-        `http://localhost:5000/api/events/${eventId}`,
-        { status: "Approved" },
-        { headers: { Authorization: `Bearer ${token}` } }
+
+      const res = await axios.post(
+        `${API_URL}/api/users/create-faculty`,
+        {
+          First_name: formData.First_name,
+          Last_name: formData.Last_name,
+          Email: formData.Email,
+          Password: formData.Password,
+          Department: department,
+          hodId: user.id,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
       );
 
-      alert("Event approved successfully!");
-      setSelectedEvent(null);
-      fetchDashboardData(); // Refresh
+      alert("Faculty created successfully!");
+      setShowCreateForm(false);
+      setFormData({ First_name: "", Last_name: "", Email: "", Password: "" });
+      fetchData();
     } catch (err) {
-      console.error("Failed to approve event", err);
-      alert("Failed to approve event");
+      setError(err.response?.data?.message || "Failed to create faculty");
     } finally {
-      setProcessing(false);
+      setSaving(false);
     }
   };
 
-  const handleReject = async (eventId) => {
-    if (!window.confirm("Are you sure you want to reject this event?")) return;
+  const handleDeleteFaculty = async (id, name) => {
+    if (!window.confirm(`Delete ${name}?`)) return;
 
-    setProcessing(true);
     try {
       const token = localStorage.getItem("token");
-      await axios.put(
-        `http://localhost:5000/api/events/${eventId}`,
-        { status: "Rejected" },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      alert("Event rejected successfully!");
-      setSelectedEvent(null);
-      fetchDashboardData(); // Refresh
+      await axios.delete(`${API_URL}/api/users/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      alert("Faculty deleted successfully!");
+      fetchData();
     } catch (err) {
-      console.error("Failed to reject event", err);
-      alert("Failed to reject event");
-    } finally {
-      setProcessing(false);
+      alert(err.response?.data?.message || "Failed to delete faculty");
     }
   };
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="text-white">Loading...</div>
+      <div className="min-h-screen bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-950 flex items-center justify-center">
+        <div className="w-16 h-16 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-white mb-6">HOD Dashboard</h1>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard
-          icon={FiCheckSquare}
-          title="Pending Events"
-          value={stats.pendingApprovals}
-          color="text-yellow-400"
-        />
-        <StatCard
-          icon={FiCalendar}
-          title="Total Events"
-          value={stats.totalEvents}
-          color="text-blue-400"
-        />
-        <StatCard
-          icon={FiUserCheck}
-          title="Faculty Count"
-          value={stats.facultyCount}
-          color="text-green-400"
-        />
-        <StatCard
-          icon={FiUsers}
-          title="Student Count"
-          value={stats.studentCount}
-          color="text-purple-400"
-        />
-      </div>
-
-      {/* Only show pending events section if there are pending events */}
-      {stats.pendingApprovals > 0 && (
-        <div className="bg-gray-800 p-6 rounded-lg shadow-lg">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-bold text-white">Pending Events</h2>
-            <Link
-              to="/event-approvals"
-              className="text-teal-400 hover:text-teal-300 text-sm"
-            >
-              View All →
-            </Link>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-gray-700">
-                  <th className="py-3 px-4 text-gray-300 font-semibold">
-                    Event Name
-                  </th>
-                  <th className="py-3 px-4 text-gray-300 font-semibold hidden sm:table-cell">
-                    Date
-                  </th>
-                  <th className="py-3 px-4 text-gray-300 font-semibold hidden md:table-cell">
-                    Created By
-                  </th>
-                  <th className="py-3 px-4 text-gray-300 font-semibold">
-                    Action
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {pendingEvents.map((event) => (
-                  <tr
-                    key={event._id}
-                    className="border-b border-gray-700 hover:bg-gray-700/50"
-                  >
-                    <td className="py-4 px-4 text-white">{event.title}</td>
-                    <td className="py-4 px-4 text-gray-400 hidden sm:table-cell">
-                      {event.date
-                        ? new Date(event.date).toLocaleDateString()
-                        : "TBD"}
-                    </td>
-                    <td className="py-4 px-4 text-gray-400 hidden md:table-cell">
-                      {event.createdByName || "Unknown"}
-                    </td>
-                    <td className="py-4 px-4">
-                      <button
-                        onClick={() => setSelectedEvent(event)}
-                        className="text-teal-400 hover:text-teal-300 text-sm font-semibold"
-                      >
-                        Review →
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+    <div className="min-h-screen bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-950 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold text-white mb-2">HOD Dashboard</h1>
+          <p className="text-slate-400">Manage faculty in {department}</p>
         </div>
-      )}
 
-      {/* Show message when no pending events */}
-      {stats.pendingApprovals === 0 && (
-        <div className="bg-gray-800 p-6 rounded-lg shadow-lg text-center">
-          <FiCheckSquare className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-white mb-2">
-            All Caught Up!
-          </h3>
-          <p className="text-gray-400">
-            No events are waiting for approval at the moment.
-          </p>
-          <Link
-            to="/event-approvals"
-            className="inline-block mt-4 text-teal-400 hover:text-teal-300 text-sm font-semibold"
-          >
-            View All Events →
-          </Link>
-        </div>
-      )}
-
-      {/* Event Details Modal */}
-      {selectedEvent && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex justify-center items-center p-4">
-          <div className="bg-gray-800 rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="bg-gradient-to-r from-teal-600 to-teal-800 p-6">
-              <h2 className="text-2xl font-bold text-white">
-                {selectedEvent.title}
-              </h2>
-              <span className="px-3 py-1 rounded text-xs font-semibold bg-yellow-900/50 text-yellow-300 inline-block mt-2">
-                {selectedEvent.status}
+        {/* Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="bg-gradient-to-br from-blue-900/40 to-blue-800/40 backdrop-blur-sm rounded-2xl p-6 border border-blue-500/30">
+            <div className="flex items-center justify-between">
+              <FiUsers className="text-blue-400 text-3xl" />
+              <span className="text-3xl font-bold text-white">
+                {stats.totalFaculty}
               </span>
             </div>
+            <p className="text-blue-300 mt-2">Total Faculty</p>
+          </div>
 
-            <div className="p-6 space-y-4">
-              <div>
-                <h3 className="text-lg font-semibold text-white mb-2">
-                  Description
-                </h3>
-                <p className="text-gray-300">{selectedEvent.description}</p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-400">Date</p>
-                  <p className="text-white font-semibold">
-                    {selectedEvent.date
-                      ? new Date(selectedEvent.date).toLocaleDateString()
-                      : "TBD"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-400">Time</p>
-                  <p className="text-white font-semibold">
-                    {selectedEvent.time || "Not specified"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-400">Venue</p>
-                  <p className="text-white font-semibold">
-                    {selectedEvent.venue || "Not specified"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-400">Max Participants</p>
-                  <p className="text-white font-semibold">
-                    {selectedEvent.maxParticipants || 0}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-400">Department</p>
-                  <p className="text-white font-semibold">
-                    {selectedEvent.departmentName || selectedEvent.departmentId}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-400">Created By</p>
-                  <p className="text-white font-semibold">
-                    {selectedEvent.createdByName || "Unknown"}
-                  </p>
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-gray-700 flex gap-3">
-                <button
-                  onClick={() => handleApprove(selectedEvent._id)}
-                  disabled={processing}
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold transition disabled:opacity-50"
-                >
-                  {processing ? "Processing..." : "✓ Approve"}
-                </button>
-                <button
-                  onClick={() => handleReject(selectedEvent._id)}
-                  disabled={processing}
-                  className="flex-1 bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg font-semibold transition disabled:opacity-50"
-                >
-                  {processing ? "Processing..." : "✗ Reject"}
-                </button>
-                <button
-                  onClick={() => setSelectedEvent(null)}
-                  className="bg-gray-700 hover:bg-gray-600 text-white px-6 py-3 rounded-lg font-semibold transition"
-                >
-                  Close
-                </button>
-              </div>
+          <div className="bg-gradient-to-br from-purple-900/40 to-purple-800/40 backdrop-blur-sm rounded-2xl p-6 border border-purple-500/30">
+            <div className="flex items-center justify-between">
+              <FiCalendar className="text-purple-400 text-3xl" />
+              <span className="text-3xl font-bold text-white">
+                {stats.totalEvents}
+              </span>
             </div>
+            <p className="text-purple-300 mt-2">Department Events</p>
+          </div>
+
+          <button
+            onClick={() => setShowCreateForm(true)}
+            className="bg-gradient-to-br from-teal-600 to-cyan-600 hover:from-teal-500 hover:to-cyan-500 rounded-2xl p-6 border border-teal-500/30 flex items-center justify-center gap-3 text-white font-semibold transition-all"
+          >
+            <FiUserPlus className="text-3xl" />
+            <span>Create Faculty</span>
+          </button>
+        </div>
+
+        {/* Create Faculty Form */}
+        {showCreateForm && (
+          <div className="bg-slate-800/60 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-6 mb-8">
+            <h2 className="text-2xl font-bold text-white mb-4">
+              Create Faculty Account
+            </h2>
+
+            {error && (
+              <div className="bg-red-900/30 border border-red-500/50 rounded-xl p-4 mb-4">
+                <p className="text-red-300 text-sm">{error}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleCreateFaculty} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <input
+                  type="text"
+                  placeholder="First Name"
+                  value={formData.First_name}
+                  onChange={(e) =>
+                    setFormData({ ...formData, First_name: e.target.value })
+                  }
+                  required
+                  className="px-4 py-3 bg-slate-900/50 text-white border border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <input
+                  type="text"
+                  placeholder="Last Name"
+                  value={formData.Last_name}
+                  onChange={(e) =>
+                    setFormData({ ...formData, Last_name: e.target.value })
+                  }
+                  required
+                  className="px-4 py-3 bg-slate-900/50 text-white border border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <input
+                type="email"
+                placeholder="Email"
+                value={formData.Email}
+                onChange={(e) =>
+                  setFormData({ ...formData, Email: e.target.value })
+                }
+                required
+                className="w-full px-4 py-3 bg-slate-900/50 text-white border border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+
+              <input
+                type="password"
+                placeholder="Password (min 6 characters)"
+                value={formData.Password}
+                onChange={(e) =>
+                  setFormData({ ...formData, Password: e.target.value })
+                }
+                required
+                minLength={6}
+                className="w-full px-4 py-3 bg-slate-900/50 text-white border border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+
+              <div className="px-4 py-3 bg-indigo-500/10 border border-indigo-500/30 rounded-xl">
+                <p className="text-indigo-300 text-sm">
+                  Department:{" "}
+                  <span className="font-semibold">{department}</span>
+                </p>
+              </div>
+
+              <div className="flex gap-4">
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white px-6 py-3 rounded-xl font-semibold transition-all disabled:opacity-50"
+                >
+                  {saving ? "Creating..." : "Create Faculty"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCreateForm(false);
+                    setError("");
+                    setFormData({
+                      First_name: "",
+                      Last_name: "",
+                      Email: "",
+                      Password: "",
+                    });
+                  }}
+                  className="flex-1 bg-slate-700 hover:bg-slate-600 text-white px-6 py-3 rounded-xl font-semibold transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* Faculty List */}
+        <div className="bg-slate-800/60 backdrop-blur-xl rounded-2xl border border-slate-700/50 overflow-hidden">
+          <div className="bg-gradient-to-r from-indigo-900/30 via-slate-800/50 to-purple-900/30 px-6 py-4 border-b border-slate-700/50">
+            <h2 className="text-xl font-bold text-white">Faculty Members</h2>
+          </div>
+
+          <div className="p-6">
+            {faculty.length === 0 ? (
+              <div className="text-center py-12">
+                <FiUsers className="text-slate-600 text-5xl mx-auto mb-4" />
+                <p className="text-slate-400">No faculty members yet</p>
+                <button
+                  onClick={() => setShowCreateForm(true)}
+                  className="mt-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white px-6 py-3 rounded-xl font-semibold transition-all"
+                >
+                  Create First Faculty
+                </button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-slate-700">
+                      <th className="text-left py-3 px-4 text-slate-300 font-semibold">
+                        Name
+                      </th>
+                      <th className="text-left py-3 px-4 text-slate-300 font-semibold">
+                        Email
+                      </th>
+                      <th className="text-left py-3 px-4 text-slate-300 font-semibold">
+                        Department
+                      </th>
+                      <th className="text-right py-3 px-4 text-slate-300 font-semibold">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {faculty.map((f) => (
+                      <tr
+                        key={f._id}
+                        className="border-b border-slate-700/50 hover:bg-slate-700/20"
+                      >
+                        <td className="py-3 px-4 text-white">
+                          {f.First_name} {f.Last_name}
+                        </td>
+                        <td className="py-3 px-4 text-slate-400">{f.Email}</td>
+                        <td className="py-3 px-4 text-slate-400">
+                          {f.Department}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <button
+                            onClick={() =>
+                              handleDeleteFaculty(
+                                f._id,
+                                `${f.First_name} ${f.Last_name}`
+                              )
+                            }
+                            className="p-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition-all"
+                          >
+                            <FiTrash2 />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 };

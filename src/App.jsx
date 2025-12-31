@@ -1,5 +1,5 @@
 import React from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import LoginPage from "./pages/LoginPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import DashboardLayout from "./components/layout/DashboardLayout";
@@ -24,245 +24,267 @@ import ReportsPage from "./pages/reports/ReportsPage";
 import CreateFacultyPage from "./pages/hod/CreateFacultyPage";
 import MyEventsPage from "./pages/events/MyEventsPage";
 import AllEventsPage from "./pages/events/AllEventsPage";
+import EventDetailsPage from "./pages/events/EventDetailsPage";
 
 export default function App() {
+  const userRole = "hod"; // This should come from your auth context or similar
+
   return (
-    <div className="flex flex-col min-h-screen">
-      <main className="flex-1">
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/login" element={<LoginPage />} />
-          {/* Redirect forgot-password to login page */}
-          <Route
-            path="/forgot-password"
-            element={<Navigate to="/login" replace />}
-          />
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
-
-          {/* Protected Routes - Student */}
-          <Route
-            path="/dashboard/student"
-            element={
-              <RequireRole allowedRoles={["student"]}>
-                <DashboardLayout role="student" />
-              </RequireRole>
-            }
-          >
-            <Route index element={<StudentDashboard />} />
-          </Route>
-
-          {/* Protected Routes - Faculty */}
-          <Route
-            path="/dashboard/faculty"
-            element={
-              <RequireRole allowedRoles={["faculty"]}>
-                <DashboardLayout role="faculty" />
-              </RequireRole>
-            }
-          >
-            <Route index element={<FacultyDashboard />} />
-          </Route>
-
-          {/* Protected Routes - HOD */}
-          <Route
-            path="/dashboard/hod"
-            element={
-              <RequireRole allowedRoles={["hod"]}>
-                <DashboardLayout role="hod" />
-              </RequireRole>
-            }
-          >
-            <Route index element={<HODDashboard />} />
-          </Route>
-
-          {/* Protected Routes - Admin */}
-          <Route
-            path="/dashboard/admin"
-            element={
-              <RequireRole allowedRoles={["admin"]}>
-                <DashboardLayout role="admin" />
-              </RequireRole>
-            }
-          >
-            <Route index element={<AdminDashboard />} />
-          </Route>
-
-          {/* Shared Protected Routes */}
-          <Route
-            element={
-              <RequireRole>
-                <DashboardLayout />
-              </RequireRole>
-            }
-          >
-            <Route path="/profile" element={<ProfilePage />} />
-
-            {/* User Management */}
+    <BrowserRouter
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true,
+      }}
+    >
+      <div className="flex flex-col min-h-screen">
+        <main className="flex-1">
+          <Routes>
+            {/* Public Routes */}
+            <Route path="/login" element={<LoginPage />} />
+            {/* Redirect forgot-password to login page */}
             <Route
-              path="/users"
-              element={
-                <RequireRole allowedRoles={["admin", "hod"]}>
-                  <UserListPage />
-                </RequireRole>
-              }
+              path="/forgot-password"
+              element={<Navigate to="/login" replace />}
             />
-            <Route
-              path="/users/create"
-              element={
-                <RequireRole allowedRoles={["admin"]}>
-                  <UserFormPage />
-                </RequireRole>
-              }
-            />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-            {/* Department Management */}
+            {/* Protected Routes - Student */}
             <Route
-              path="/departments"
-              element={
-                <RequireRole allowedRoles={["admin"]}>
-                  <DepartmentListPage />
-                </RequireRole>
-              }
-            />
-            <Route
-              path="/departments/create"
-              element={
-                <RequireRole allowedRoles={["admin"]}>
-                  <DepartmentFormPage />
-                </RequireRole>
-              }
-            />
-            <Route
-              path="/departments/:id/edit"
-              element={
-                <RequireRole allowedRoles={["admin"]}>
-                  <DepartmentFormPage />
-                </RequireRole>
-              }
-            />
-
-            {/* Event Management */}
-            <Route path="/events" element={<EventListPage />} />
-            <Route path="/events/:id" element={<EventDetailPage />} />
-            <Route
-              path="/my-events"
+              path="/dashboard/student"
               element={
                 <RequireRole allowedRoles={["student"]}>
-                  <MyEventsPage />
+                  <DashboardLayout role="student" />
                 </RequireRole>
               }
-            />
-            <Route
-              path="/create-event"
-              element={
-                <RequireRole allowedRoles={["faculty", "admin"]}>
-                  <EventFormPage />
-                </RequireRole>
-              }
-            />
-            <Route
-              path="/events/:id/edit"
-              element={
-                <RequireRole allowedRoles={["faculty", "admin"]}>
-                  <EventFormPage />
-                </RequireRole>
-              }
-            />
-            <Route
-              path="/event-approvals"
-              element={
-                <RequireRole allowedRoles={["hod", "admin"]}>
-                  <EventApprovalsPage />
-                </RequireRole>
-              }
-            />
-            <Route
-              path="/all-events"
-              element={
-                <RequireRole allowedRoles={["hod", "admin"]}>
-                  <AllEventsPage />
-                </RequireRole>
-              }
-            />
+            >
+              <Route index element={<StudentDashboard />} />
+            </Route>
 
-            {/* Volunteer Tasks */}
+            {/* Protected Routes - Faculty */}
             <Route
-              path="/tasks"
+              path="/dashboard/faculty"
               element={
-                <RequireRole allowedRoles={["faculty", "admin"]}>
-                  <TaskListPage />
+                <RequireRole allowedRoles={["faculty"]}>
+                  <DashboardLayout role="faculty" />
                 </RequireRole>
               }
-            />
-            <Route
-              path="/my-tasks"
-              element={
-                <RequireRole allowedRoles={["student"]}>
-                  <TaskListPage />
-                </RequireRole>
-              }
-            />
-            <Route
-              path="/tasks/create"
-              element={
-                <RequireRole allowedRoles={["faculty", "admin"]}>
-                  <TaskFormPage />
-                </RequireRole>
-              }
-            />
-            <Route
-              path="/tasks/:id/edit"
-              element={
-                <RequireRole allowedRoles={["faculty", "admin"]}>
-                  <TaskFormPage />
-                </RequireRole>
-              }
-            />
+            >
+              <Route index element={<FacultyDashboard />} />
+            </Route>
 
-            {/* Attendance Management */}
+            {/* Protected Routes - HOD */}
             <Route
-              path="/attendance"
-              element={
-                <RequireRole allowedRoles={["faculty", "hod", "admin"]}>
-                  <EventListPage />
-                </RequireRole>
-              }
-            />
-            <Route
-              path="/events/:eventId/attendance"
-              element={
-                <RequireRole allowedRoles={["faculty", "hod", "admin"]}>
-                  <AttendancePage />
-                </RequireRole>
-              }
-            />
-
-            {/* Reports */}
-            <Route
-              path="/reports"
-              element={
-                <RequireRole allowedRoles={["hod", "admin"]}>
-                  <ReportsPage />
-                </RequireRole>
-              }
-            />
-
-            {/* HOD Create Faculty */}
-            <Route
-              path="/create-faculty"
+              path="/dashboard/hod"
               element={
                 <RequireRole allowedRoles={["hod"]}>
-                  <CreateFacultyPage />
+                  <DashboardLayout role="hod" />
                 </RequireRole>
               }
-            />
-          </Route>
+            >
+              <Route index element={<HODDashboard />} />
+            </Route>
 
-          {/* Redirect root to login */}
-          <Route path="/" element={<Navigate to="/login" replace />} />
-          <Route path="*" element={<Navigate to="/login" replace />} />
-        </Routes>
-      </main>
-    </div>
+            {/* Protected Routes - Admin */}
+            <Route
+              path="/dashboard/admin"
+              element={
+                <RequireRole allowedRoles={["admin"]}>
+                  <DashboardLayout role="admin" />
+                </RequireRole>
+              }
+            >
+              <Route index element={<AdminDashboard />} />
+            </Route>
+
+            {/* Shared Protected Routes */}
+            <Route
+              element={
+                <RequireRole>
+                  <DashboardLayout />
+                </RequireRole>
+              }
+            >
+              <Route path="/profile" element={<ProfilePage />} />
+
+              {/* User Management */}
+              <Route
+                path="/users"
+                element={
+                  <RequireRole allowedRoles={["admin", "hod"]}>
+                    <UserListPage />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/users/create"
+                element={
+                  <RequireRole allowedRoles={["admin"]}>
+                    <UserFormPage />
+                  </RequireRole>
+                }
+              />
+              <Route path="/users/edit/:id" element={<UserFormPage />} />
+
+              {/* Department Management */}
+              <Route
+                path="/departments"
+                element={
+                  <RequireRole allowedRoles={["admin"]}>
+                    <DepartmentListPage />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/departments/create"
+                element={
+                  <RequireRole allowedRoles={["admin"]}>
+                    <DepartmentFormPage />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/departments/:id/edit"
+                element={
+                  <RequireRole allowedRoles={["admin"]}>
+                    <DepartmentFormPage />
+                  </RequireRole>
+                }
+              />
+
+              {/* Event Management */}
+              <Route path="/events" element={<EventListPage />} />
+              <Route path="/events/:id" element={<EventDetailPage />} />
+              <Route
+                path="/my-events"
+                element={
+                  <RequireRole allowedRoles={["student"]}>
+                    <MyEventsPage />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/create-event"
+                element={
+                  <RequireRole allowedRoles={["faculty", "admin"]}>
+                    <EventFormPage />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/events/:id/edit"
+                element={
+                  <RequireRole allowedRoles={["faculty", "admin"]}>
+                    <EventFormPage />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/event-approvals"
+                element={
+                  <RequireRole allowedRoles={["hod", "admin"]}>
+                    <EventApprovalsPage />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/all-events"
+                element={
+                  <RequireRole allowedRoles={["hod", "admin"]}>
+                    <AllEventsPage />
+                  </RequireRole>
+                }
+              />
+
+              {/* Volunteer Tasks */}
+              <Route
+                path="/tasks"
+                element={
+                  <RequireRole allowedRoles={["faculty", "admin"]}>
+                    <TaskListPage />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/my-tasks"
+                element={
+                  <RequireRole allowedRoles={["student"]}>
+                    <TaskListPage />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/tasks/create"
+                element={
+                  <RequireRole allowedRoles={["faculty", "admin"]}>
+                    <TaskFormPage />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/tasks/:id/edit"
+                element={
+                  <RequireRole allowedRoles={["faculty", "admin"]}>
+                    <TaskFormPage />
+                  </RequireRole>
+                }
+              />
+
+              {/* Attendance Management */}
+              <Route
+                path="/attendance"
+                element={
+                  <RequireRole allowedRoles={["faculty", "hod", "admin"]}>
+                    <EventListPage />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/events/:eventId/attendance"
+                element={
+                  <RequireRole allowedRoles={["faculty", "hod", "admin"]}>
+                    <AttendancePage />
+                  </RequireRole>
+                }
+              />
+
+              {/* Reports */}
+              <Route
+                path="/reports"
+                element={
+                  <RequireRole allowedRoles={["hod", "admin"]}>
+                    <ReportsPage />
+                  </RequireRole>
+                }
+              />
+
+              {/* HOD Create Faculty */}
+              <Route
+                path="/create-faculty"
+                element={
+                  <RequireRole allowedRoles={["hod"]}>
+                    <CreateFacultyPage />
+                  </RequireRole>
+                }
+              />
+            </Route>
+
+            {/* HOD Specific Routes */}
+            {userRole === "hod" && (
+              <>
+                <Route path="/hod" element={<HODDashboard />} />
+                <Route path="/events" element={<EventListPage />} />
+                <Route path="/events/:id" element={<EventDetailsPage />} />
+                <Route path="/profile" element={<ProfilePage />} />
+              </>
+            )}
+
+            {/* Redirect root to login */}
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          </Routes>
+        </main>
+      </div>
+    </BrowserRouter>
   );
 }
+

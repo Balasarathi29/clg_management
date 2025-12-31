@@ -1,45 +1,20 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
-const crypto = require("crypto");
 
 const UserSchema = new mongoose.Schema({
-  First_name: {
-    type: String,
-    required: [true, "Please provide first name"],
-    trim: true,
-  },
-  Last_name: {
-    type: String,
-    required: [true, "Please provide last name"],
-    trim: true,
-  },
-  Email: {
-    type: String,
-    required: [true, "Please provide email"],
-    unique: true,
-    lowercase: true,
-    trim: true,
-  },
-  Password: {
-    type: String,
-    required: [true, "Please provide password"],
-    minlength: 6,
-    select: false,
-  },
+  First_name: { type: String, required: true },
+  Last_name: { type: String, required: true },
+  Email: { type: String, required: true, unique: true, lowercase: true },
+  Password: { type: String, required: true },
   role: {
     type: String,
-    enum: ["student", "faculty", "hod", "admin"],
+    enum: ["admin", "hod", "faculty", "student"],
     default: "student",
   },
-  Department: {
-    type: String,
-    trim: true,
-  },
-  DOB: {
-    type: Date,
-  },
-  resetPasswordToken: String,
-  resetPasswordExpire: Date,
+  Department: { type: String },
+  DOB: { type: String },
+  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  createdAt: { type: Date, default: Date.now },
 });
 
 // Hash password before saving
@@ -49,41 +24,27 @@ UserSchema.pre("save", async function (next) {
   }
 
   try {
-    console.log("Hashing password for:", this.Email);
     const salt = await bcrypt.genSalt(10);
     this.Password = await bcrypt.hash(this.Password, salt);
-    console.log("Password hashed successfully");
+    console.log("✅ Password hashed for user:", this.Email);
     next();
   } catch (error) {
-    console.error("Error hashing password:", error);
+    console.error("❌ Error hashing password:", error);
     next(error);
   }
 });
 
 // Compare password method
-UserSchema.methods.matchPassword = async function (enteredPassword) {
+UserSchema.methods.comparePassword = async function (candidatePassword) {
   try {
-    const isMatch = await bcrypt.compare(enteredPassword, this.Password);
-    console.log("Password comparison result:", isMatch);
-    return isMatch;
+    console.log("Comparing passwords...");
+    const result = await bcrypt.compare(candidatePassword, this.Password);
+    console.log("Password comparison result:", result);
+    return result;
   } catch (error) {
-    console.error("Error comparing passwords:", error);
-    throw error;
+    console.error("❌ Error comparing passwords:", error);
+    throw new Error(error);
   }
-};
-
-// Generate password reset token
-UserSchema.methods.getResetPasswordToken = function () {
-  const resetToken = crypto.randomBytes(20).toString("hex");
-
-  this.resetPasswordToken = crypto
-    .createHash("sha256")
-    .update(resetToken)
-    .digest("hex");
-
-  this.resetPasswordExpire = Date.now() + 30 * 60 * 1000; // 30 minutes
-
-  return resetToken;
 };
 
 module.exports = mongoose.model("User", UserSchema);

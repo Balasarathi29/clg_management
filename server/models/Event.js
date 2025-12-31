@@ -9,7 +9,6 @@ const EventSchema = new mongoose.Schema(
     },
     description: {
       type: String,
-      required: true,
     },
     date: {
       type: Date,
@@ -17,37 +16,43 @@ const EventSchema = new mongoose.Schema(
     },
     time: {
       type: String,
-      required: true,
     },
-    venue: {
+    location: {
       type: String,
-      required: true,
     },
-    maxParticipants: {
-      type: Number,
-      required: true,
-      default: 100,
-    },
-    departmentId: {
+    Department: {
       type: String,
-      required: true,
     },
-    departmentName: String,
-    status: {
-      type: String,
-      enum: ["Pending", "Approved", "Rejected", "Completed"],
-      default: "Pending",
-    },
-    createdBy: String,
-    createdByName: String,
-    currentParticipants: {
+    participants: {
       type: Number,
       default: 0,
+    },
+    status: {
+      type: String,
+      enum: ["Pending", "Approved", "Rejected"],
+      default: "Pending",
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
+    updatedAt: {
+      type: Date,
+      default: Date.now,
     },
   },
   {
     timestamps: true,
   }
 );
+
+EventSchema.pre("save", function (next) {
+  this.updatedAt = Date.now();
+  next();
+});
 
 module.exports = mongoose.model("Event", EventSchema);

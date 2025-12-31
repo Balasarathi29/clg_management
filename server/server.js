@@ -1,7 +1,7 @@
 const path = require("path");
 require("dotenv").config({ path: path.join(__dirname, ".env") });
 
-// Fallback to hardcoded values if .env not loaded
+// Fallback to environment values
 process.env.PORT = process.env.PORT || "5000";
 process.env.MONGODB_URI =
   process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/clg_management";
@@ -15,76 +15,205 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const connectDB = require("./config/db");
 
-console.log("=== Environment Check ===");
-console.log("Current directory:", __dirname);
-console.log(".env path:", path.join(__dirname, ".env"));
-console.log("PORT:", process.env.PORT);
-console.log("MONGODB_URI:", process.env.MONGODB_URI ? "Defined ✓" : "MISSING");
-console.log("JWT_SECRET:", process.env.JWT_SECRET ? "Defined ✓" : "MISSING");
-console.log("========================");
+// Auto-seed database on startup - Only create admin
+const seedDatabase = async () => {
+  try {
+    let retries = 0;
+    while (mongoose.connection.readyState !== 1 && retries < 10) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      retries++;
+    }
+
+    if (mongoose.connection.readyState !== 1) {
+      console.error("❌ Database not connected, skipping seed");
+      return;
+    }
+
+    const User = require("./models/User");
+    const Department = require("./models/Department");
+
+    // Check if admin exists
+    const adminExists = await User.findOne({ role: "admin" });
+
+    if (!adminExists) {
+      console.log("📦 Creating default admin account...");
+
+      await User.create({
+        First_name: "Admin",
+        Last_name: "User",
+        Email: "admin@college.edu",
+        Password: "admin123",
+        role: "admin",
+        Department: "Administration",
+        DOB: "1990-01-01",
+      });
+
+      console.log("\n✅ Admin account created!");
+      console.log("=".repeat(50));
+      console.log("ADMIN LOGIN CREDENTIALS:");
+      console.log("Email: admin@college.edu");
+      console.log("Password: admin123");
+      console.log("=".repeat(50) + "\n");
+    } else {
+      console.log(`✅ Admin account already exists: ${adminExists.Email}`);
+    }
+
+    // Seed default departments if none exist
+    const deptCount = await Department.countDocuments();
+    if (deptCount === 0) {
+      console.log("📦 Creating default departments...");
+
+      const defaultDepartments = [
+        {
+          name: "Computer Science",
+          code: "CS",
+          description: "Department of Computer Science",
+        },
+        {
+          name: "Electrical Engineering",
+          code: "EE",
+          description: "Department of Electrical Engineering",
+        },
+        {
+          name: "Mechanical Engineering",
+          code: "ME",
+          description: "Department of Mechanical Engineering",
+        },
+        {
+          name: "Civil Engineering",
+          code: "CE",
+          description: "Department of Civil Engineering",
+        },
+        {
+          name: "Information Technology",
+          code: "IT",
+          description: "Department of Information Technology",
+        },
+        {
+          name: "Electronics & Communication",
+          code: "EC",
+          description: "Department of Electronics & Communication",
+        },
+      ];
+
+      await Department.insertMany(defaultDepartments);
+      console.log("✅ Default departments created!");
+    }
+
+    const userCount = await User.countDocuments();
+    console.log(`📊 Total users in database: ${userCount}`);
+    console.log(
+      `📊 Total departments in database: ${await Department.countDocuments()}`
+    );
+  } catch (error) {
+    console.error("❌ Seed error:", error.message);
+  }
+};
 
 // Connect to database
-connectDB();
+connectDB().then(() => {
+  setTimeout(seedDatabase, 2000);
+});
+
+mongoose.connection.once("open", async () => {
+  console.log("✅ MongoDB connected successfully");
+  console.log("📊 Database:", mongoose.connection.name);
+});
 
 const app = express();
 
+// --- FIX: Allow all headers and handle OPTIONS preflight ---
+app.use(
+  cors({
+    origin: ["http://localhost:3000", "http://localhost:5173"],
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["*"], // Allow all headers
+  })
+);
+
+// Log all incoming headers for debugging
+app.use((req, res, next) => {
+  console.log("[DEBUG] Incoming headers:", req.headers);
+  next();
+});
+
 // Middleware
-app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Request logging middleware
+// Request logging middleware (only in development)
+if (process.env.NODE_ENV === "development") {
+  app.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+    next();
+  });
+}
+
+// Check MongoDB connection before processing requests
 app.use((req, res, next) => {
-  console.log(`\n[${new Date().toISOString()}] ${req.method} ${req.path}`);
-
-  // Don't log sensitive data
-  if (
-    req.body &&
-    typeof req.body === "object" &&
-    Object.keys(req.body).length > 0
-  ) {
-    const sanitizedBody = { ...req.body };
-
-    // Remove sensitive fields from logs
-    if (sanitizedBody.Password) sanitizedBody.Password = "***HIDDEN***";
-    if (sanitizedBody.password) sanitizedBody.password = "***HIDDEN***";
-    if (sanitizedBody.EMAIL_PASSWORD)
-      sanitizedBody.EMAIL_PASSWORD = "***HIDDEN***";
-
-    console.log("Body:", JSON.stringify(sanitizedBody, null, 2));
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({
+      success: false,
+      message:
+        "Database connection not established. Please ensure MongoDB is running on localhost:27017",
+    });
   }
   next();
 });
 
-// Routes - Register with error handling
-console.log("\n🔗 Registering routes...");
+// Routes
+app.use("/api/auth", require("./routes/auth"));
+app.use("/api/events", require("./routes/events"));
+app.use("/api/tasks", require("./routes/tasks"));
+app.use("/api/participation", require("./routes/participation"));
 
-app.use("/", require("./routes/auth"));
-console.log("✅ Auth routes registered");
+// User management routes - IMPORTANT: Specific routes BEFORE parameterized routes
 
-// Admin user creation route
-app.post("/api/users/create", async (req, res) => {
+// Get all users
+app.get("/api/users", async (req, res) => {
   try {
     const User = require("./models/User");
-    const { First_name, Last_name, Email, Password, Department } = req.body;
+    const { role } = req.query;
+    const filter = role ? { role } : {};
+    const users = await User.find(filter).select("-Password");
+    res.status(200).json(users);
+  } catch (error) {
+    console.error("Get users error:", error);
+    res
+      .status(500)
+      .json({ message: "Failed to fetch users", error: error.message });
+  }
+});
 
-    console.log("Admin creating HOD account:", Email);
+// Create HOD
+app.post("/api/users/create-hod", async (req, res) => {
+  try {
+    const User = require("./models/User");
+    const { First_name, Last_name, Email, Password, Department, adminId } =
+      req.body;
+
+    // Verify admin
+    const admin = await User.findById(adminId);
+    if (!admin || admin.role !== "admin") {
+      return res
+        .status(403)
+        .json({ message: "Only admin can create HOD accounts" });
+    }
 
     if (!First_name || !Last_name || !Email || !Password || !Department) {
-      return res.status(400).json({
-        message: "Please provide all required fields",
-      });
+      return res
+        .status(400)
+        .json({ message: "Please provide all required fields" });
     }
 
-    // Check if user exists
     const userExists = await User.findOne({ Email: Email.toLowerCase() });
     if (userExists) {
-      return res.status(400).json({
-        message: "HOD account already exists with this email",
-      });
+      return res
+        .status(400)
+        .json({ message: "User already exists with this email" });
     }
 
-    // Create HOD account
     const hod = await User.create({
       First_name,
       Last_name,
@@ -92,9 +221,10 @@ app.post("/api/users/create", async (req, res) => {
       Password,
       role: "hod",
       Department,
+      createdBy: adminId,
     });
 
-    console.log("HOD created by Admin:", hod.Email, "Department:", Department);
+    console.log("✅ HOD created by Admin:", hod.Email);
 
     res.status(201).json({
       message: "HOD account created successfully",
@@ -109,40 +239,259 @@ app.post("/api/users/create", async (req, res) => {
     });
   } catch (error) {
     console.error("Create HOD error:", error);
+    res
+      .status(500)
+      .json({ message: error.message || "Server error creating HOD" });
+  }
+});
+
+// Create Faculty
+app.post("/api/users/create-faculty", async (req, res) => {
+  try {
+    const User = require("./models/User");
+    const { First_name, Last_name, Email, Password, Department, hodId } =
+      req.body;
+
+    // Verify HOD
+    const hod = await User.findById(hodId);
+    if (!hod || hod.role !== "hod") {
+      return res
+        .status(403)
+        .json({ message: "Only HOD can create faculty accounts" });
+    }
+
+    // HOD can only create faculty in their department
+    if (hod.Department !== Department) {
+      return res
+        .status(403)
+        .json({ message: "HOD can only create faculty in their department" });
+    }
+
+    if (!First_name || !Last_name || !Email || !Password || !Department) {
+      return res
+        .status(400)
+        .json({ message: "Please provide all required fields" });
+    }
+
+    const userExists = await User.findOne({ Email: Email.toLowerCase() });
+    if (userExists) {
+      return res
+        .status(400)
+        .json({ message: "User already exists with this email" });
+    }
+
+    const faculty = await User.create({
+      First_name,
+      Last_name,
+      Email: Email.toLowerCase(),
+      Password,
+      role: "faculty",
+      Department,
+      createdBy: hodId,
+    });
+
+    console.log("✅ Faculty created by HOD:", faculty.Email);
+
+    res.status(201).json({
+      message: "Faculty account created successfully",
+      user: {
+        id: faculty._id,
+        First_name: faculty.First_name,
+        Last_name: faculty.Last_name,
+        Email: faculty.Email,
+        role: faculty.role,
+        Department: faculty.Department,
+      },
+    });
+  } catch (error) {
+    console.error("Create faculty error:", error);
+    res
+      .status(500)
+      .json({ message: error.message || "Server error creating faculty" });
+  }
+});
+
+// Create user (generic)
+app.post("/api/users/create", async (req, res) => {
+  try {
+    const User = require("./models/User");
+    const { First_name, Last_name, Email, Password, Department, role } =
+      req.body;
+
+    // Get admin ID from authorization header or body
+    let adminId = req.body.adminId;
+
+    // If adminId not in body, try to get from token (if you're using auth middleware)
+    if (!adminId && req.headers.authorization) {
+      const token = req.headers.authorization.split(" ")[1];
+      const jwt = require("jsonwebtoken");
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        adminId = decoded.id;
+      } catch (err) {
+        console.log("Token verification failed:", err.message);
+      }
+    }
+
+    // If role is not provided, default to "student"
+    const userRole = role || "student";
+
+    // For student, Department is optional
+    if (!First_name || !Last_name || !Email || !Password) {
+      return res.status(400).json({
+        message: "Please provide all required fields",
+      });
+    }
+    // For non-student, Department is required
+    if (userRole !== "student" && !Department) {
+      return res.status(400).json({
+        message: "Department is required for non-student accounts",
+      });
+    }
+
+    const userExists = await User.findOne({ Email: Email.toLowerCase() });
+    if (userExists) {
+      return res.status(400).json({
+        message: "User already exists with this email",
+      });
+    }
+
+    const user = await User.create({
+      First_name,
+      Last_name,
+      Email: Email.toLowerCase(),
+      Password,
+      role: userRole,
+      Department: userRole === "student" ? "" : Department,
+      createdBy: adminId,
+    });
+
+    console.log(`✅ ${userRole.toUpperCase()} created:`, user.Email);
+
+    res.status(201).json({
+      message: `${userRole} account created successfully`,
+      user: {
+        id: user._id,
+        First_name: user.First_name,
+        Last_name: user.Last_name,
+        Email: user.Email,
+        role: user.role,
+        Department: user.Department,
+      },
+    });
+  } catch (error) {
+    console.error("Create user error:", error);
     res.status(500).json({
-      message: error.message || "Server error creating HOD account",
+      message: error.message || "Server error creating user",
+      debug: error, // Add debug info for troubleshooting
     });
   }
 });
 
-// Delete user route
-app.delete("/api/users/:id", async (req, res) => {
+// Get single user - MUST be before other :id routes
+app.get("/api/users/:id", async (req, res) => {
   try {
     const User = require("./models/User");
-    const userId = req.params.id;
-
-    console.log("Admin deleting user:", userId);
-
-    const user = await User.findById(userId);
+    const user = await User.findById(req.params.id).select("-Password");
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Prevent deletion of system accounts
-    if (user.role === "hod" || user.role === "admin") {
-      return res.status(403).json({
-        message: "Cannot delete system accounts (HOD/Admin)",
-      });
+    res.status(200).json(user);
+  } catch (error) {
+    console.error("Get user error:", error);
+    res
+      .status(500)
+      .json({ message: "Failed to fetch user", error: error.message });
+  }
+});
+
+// Update user
+app.put("/api/users/:id", async (req, res) => {
+  try {
+    const User = require("./models/User");
+    const { First_name, Last_name, Email, Department, role, Password } =
+      req.body;
+
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
     }
 
-    await User.findByIdAndDelete(userId);
+    // Get admin ID from token
+    let adminId = req.body.adminId;
+    if (!adminId && req.headers.authorization) {
+      const token = req.headers.authorization.split(" ")[1];
+      const jwt = require("jsonwebtoken");
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        adminId = decoded.id;
+      } catch (err) {
+        console.log("Token verification failed:", err.message);
+      }
+    }
 
-    console.log("User deleted:", user.Email, "Role:", user.role);
+    // Verify admin
+    if (adminId) {
+      const admin = await User.findById(adminId);
+      if (!admin || admin.role !== "admin") {
+        return res.status(403).json({ message: "Only admin can update users" });
+      }
+    }
+
+    // Update fields
+    user.First_name = First_name || user.First_name;
+    user.Last_name = Last_name || user.Last_name;
+    user.Email = Email || user.Email;
+    user.Department = Department || user.Department;
+    user.role = role || user.role;
+
+    // Only update password if provided
+    if (Password) {
+      user.Password = Password;
+    }
+
+    await user.save();
+
+    console.log(`✅ User updated: ${user.Email}`);
 
     res.status(200).json({
-      message: "User deleted successfully",
+      message: "User updated successfully",
+      user: {
+        id: user._id,
+        First_name: user.First_name,
+        Last_name: user.Last_name,
+        Email: user.Email,
+        role: user.role,
+        Department: user.Department,
+      },
     });
+  } catch (error) {
+    console.error("Update user error:", error);
+    res.status(500).json({ message: error.message || "Failed to update user" });
+  }
+});
+
+// Delete user
+app.delete("/api/users/:id", async (req, res) => {
+  try {
+    const User = require("./models/User");
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (user.role === "admin") {
+      return res.status(403).json({ message: "Cannot delete admin account" });
+    }
+
+    await User.findByIdAndDelete(req.params.id);
+
+    console.log(`✅ User deleted: ${user.Email} (${user.role})`);
+
+    res.status(200).json({ message: "User deleted successfully" });
   } catch (error) {
     console.error("Delete user error:", error);
     res.status(500).json({
@@ -151,55 +500,101 @@ app.delete("/api/users/:id", async (req, res) => {
   }
 });
 
-// Events route with error handling
-try {
-  const eventsRouter = require("./routes/events");
-  app.use("/api/events", eventsRouter);
-  console.log("✅ Events routes registered at /api/events");
-} catch (err) {
-  console.error("❌ Failed to register events routes:", err.message);
-}
+// Profile routes are now defined directly in server.js
+app.get("/api/profile/:id", async (req, res) => {
+  try {
+    const User = require("./models/User");
+    const user = await User.findById(req.params.id).select("-Password");
 
-// Tasks route with error handling
-try {
-  const tasksRouter = require("./routes/tasks");
-  app.use("/api/tasks", tasksRouter);
-  console.log("✅ Tasks routes registered at /api/tasks");
-} catch (err) {
-  console.error("❌ Failed to register tasks routes:", err.message);
-}
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
 
-// Profile route with error handling
-try {
-  const profileRouter = require("./routes/profile");
-  app.use("/api/profile", profileRouter);
-  console.log("✅ Profile routes registered at /api/profile");
-} catch (err) {
-  console.error("❌ Failed to register profile routes:", err.message);
-}
+    res.status(200).json(user);
+  } catch (error) {
+    console.error("Get profile error:", error);
+    res
+      .status(500)
+      .json({ message: "Failed to fetch profile", error: error.message });
+  }
+});
 
-// Participation route with error handling
-try {
-  const participationRouter = require("./routes/participation");
-  app.use("/api/participation", participationRouter);
-  console.log("✅ Participation routes registered at /api/participation");
-} catch (err) {
-  console.error("❌ Failed to register participation routes:", err.message);
-}
+app.put("/api/profile/:id", async (req, res) => {
+  // Debug log for every profile update request
+  console.log(`[DEBUG] PUT /api/profile/${req.params.id}`);
+  console.log("[DEBUG] Headers:", req.headers);
+  console.log("[DEBUG] Body:", req.body);
+
+  try {
+    const User = require("./models/User");
+    const { First_name, Last_name, DOB, Department } = req.body;
+
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Get current user from token
+    let currentUserId = null;
+    if (req.headers.authorization) {
+      const token = req.headers.authorization.split(" ")[1];
+      const jwt = require("jsonwebtoken");
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        currentUserId = decoded.id;
+      } catch (err) {
+        return res.status(401).json({ message: "Invalid token" });
+      }
+    }
+
+    // Allow user to update their own profile OR admin to update any profile
+    const currentUser = await User.findById(currentUserId);
+    const isOwnProfile = currentUserId === req.params.id;
+    const isAdmin = currentUser && currentUser.role === "admin";
+
+    if (!isOwnProfile && !isAdmin) {
+      return res
+        .status(403)
+        .json({ message: "You can only update your own profile" });
+    }
+
+    // Update allowed fields
+    if (First_name) user.First_name = First_name;
+    if (Last_name) user.Last_name = Last_name;
+    if (DOB) user.DOB = DOB;
+
+    // Only admin or HOD can change department
+    if (Department && (isAdmin || currentUser.role === "hod")) {
+      user.Department = Department;
+    }
+
+    await user.save();
+
+    console.log(
+      `✅ Profile updated: ${user.Email} (by ${
+        isOwnProfile ? "self" : "admin"
+      })`
+    );
+
+    // Return updated user without password
+    const updatedUser = await User.findById(req.params.id).select("-Password");
+    res.status(200).json(updatedUser);
+  } catch (error) {
+    console.error("Update profile error:", error);
+    res
+      .status(500)
+      .json({ message: error.message || "Failed to update profile" });
+  }
+});
 
 // Attendance routes
 app.get("/api/events/:eventId/participants", async (req, res) => {
   try {
-    const { eventId } = req.params;
-    console.log("Fetching participants for event:", eventId);
-
     const Participation = require("./models/Participation");
     const participants = await Participation.find({
-      eventId,
+      eventId: req.params.eventId,
       status: "Registered",
     });
-
-    console.log(`Found ${participants.length} participants`);
     res.status(200).json(participants);
   } catch (error) {
     console.error("Get participants error:", error);
@@ -209,28 +604,19 @@ app.get("/api/events/:eventId/participants", async (req, res) => {
 
 app.post("/api/events/:eventId/attendance", async (req, res) => {
   try {
-    const { eventId } = req.params;
     const { attendance } = req.body;
-
-    console.log("Saving attendance for event:", eventId);
-    console.log("Attendance data:", attendance);
-
     const Participation = require("./models/Participation");
 
-    // Update each participant's attendance status
     const updates = Object.entries(attendance).map(
-      ([participationId, isPresent]) => {
-        return Participation.findByIdAndUpdate(
+      ([participationId, isPresent]) =>
+        Participation.findByIdAndUpdate(
           participationId,
           { status: isPresent ? "Attended" : "Absent" },
           { new: true }
-        );
-      }
+        )
     );
 
     await Promise.all(updates);
-
-    console.log("Attendance saved successfully");
     res.status(200).json({ message: "Attendance saved successfully" });
   } catch (error) {
     console.error("Save attendance error:", error);
@@ -240,231 +626,136 @@ app.post("/api/events/:eventId/attendance", async (req, res) => {
 
 app.get("/api/events/:eventId/attendance/report", async (req, res) => {
   try {
-    const { eventId } = req.params;
-    console.log("Generating attendance report for event:", eventId);
-
-    const Event = require("./models/Event");
-    const Participation = require("./models/Participation");
-
-    const event = await Event.findById(eventId);
-    const participants = await Participation.find({ eventId });
-
-    // Generate CSV
-    let csv = "Name,Email,Department,Status,Registered Date\n";
-
-    participants.forEach((p) => {
-      csv += `"${p.studentName}","${p.studentEmail}","Department","${
-        p.status
-      }","${new Date(p.registeredAt).toLocaleDateString()}"\n`;
-    });
-
-    res.setHeader("Content-Type", "text/csv");
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="attendance_${event.title}_${Date.now()}.csv"`
-    );
-    res.send(csv);
+    // ...existing code for attendance report...
+    // (You may want to implement the actual attendance report logic here)
+    res
+      .status(200)
+      .json({ message: "Attendance report endpoint (to be implemented)" });
   } catch (error) {
-    console.error("Generate report error:", error);
-    res.status(500).json({ message: "Failed to generate report" });
-  }
-});
-
-// Departments routes
-const departments = [
-  {
-    id: "1",
-    name: "Computer Science",
-    code: "CS",
-    description: "Department of Computer Science and Engineering",
-    hodId: "",
-    hodName: "",
-  },
-  {
-    id: "2",
-    name: "Electrical Engineering",
-    code: "EE",
-    description: "Department of Electrical Engineering",
-    hodId: "",
-    hodName: "",
-  },
-  {
-    id: "3",
-    name: "Mechanical Engineering",
-    code: "ME",
-    description: "Department of Mechanical Engineering",
-    hodId: "",
-    hodName: "",
-  },
-  {
-    id: "4",
-    name: "Civil Engineering",
-    code: "CE",
-    description: "Department of Civil Engineering",
-    hodId: "",
-    hodName: "",
-  },
-  {
-    id: "5",
-    name: "Information Technology",
-    code: "IT",
-    description: "Department of Information Technology",
-    hodId: "",
-    hodName: "",
-  },
-  {
-    id: "6",
-    name: "Electronics & Communication",
-    code: "EC",
-    description: "Department of Electronics & Communication",
-    hodId: "",
-    hodName: "",
-  },
-];
-
-// DELETE must come before GET to avoid route conflicts
-app.delete("/api/departments/:id", (req, res) => {
-  try {
-    console.log("DELETE /api/departments/:id called for:", req.params.id);
-    const index = departments.findIndex((d) => d.id === req.params.id);
-
-    if (index !== -1) {
-      const deleted = departments[index];
-      departments.splice(index, 1);
-      console.log("Department deleted:", deleted.name);
-      res.json({ message: "Department deleted successfully" });
-    } else {
-      res.status(404).json({ message: "Department not found" });
-    }
-  } catch (error) {
-    console.error("Delete department error:", error);
-    res.status(500).json({ message: "Failed to delete department" });
-  }
-});
-
-app.get("/api/departments/:id", (req, res) => {
-  console.log("GET /api/departments/:id called for:", req.params.id);
-  const dept = departments.find((d) => d.id === req.params.id);
-  if (dept) {
-    res.json(dept);
-  } else {
-    res.status(404).json({ message: "Department not found" });
-  }
-});
-
-app.get("/api/departments", (req, res) => {
-  console.log("GET /api/departments called");
-  res.json(departments);
-});
-
-app.post("/api/departments", async (req, res) => {
-  try {
-    console.log("POST /api/departments called with:", req.body);
-    const { name, code, description, hodId } = req.body;
-
-    if (!hodId) {
-      return res.status(400).json({ message: "HOD assignment is required" });
-    }
-
-    // Get HOD details
-    const User = require("./models/User");
-    const hod = await User.findById(hodId);
-
-    const newDept = {
-      id: String(departments.length + 1),
-      name,
-      code,
-      description,
-      hodId,
-      hodName: hod ? `${hod.First_name} ${hod.Last_name}` : "Unknown",
-    };
-
-    departments.push(newDept);
-    console.log("Department created:", newDept);
-    res.status(201).json(newDept);
-  } catch (error) {
-    console.error("Create department error:", error);
-    res.status(500).json({ message: "Failed to create department" });
-  }
-});
-
-app.put("/api/departments/:id", async (req, res) => {
-  try {
-    console.log("PUT /api/departments/:id called for:", req.params.id);
-    const index = departments.findIndex((d) => d.id === req.params.id);
-
-    if (index !== -1) {
-      const { name, code, description, hodId } = req.body;
-
-      // Get HOD details if hodId is provided
-      let hodName = departments[index].hodName;
-      if (hodId) {
-        const User = require("./models/User");
-        const hod = await User.findById(hodId);
-        hodName = hod ? `${hod.First_name} ${hod.Last_name}` : "Unknown";
-      }
-
-      departments[index] = {
-        ...departments[index],
-        name,
-        code,
-        description,
-        hodId: hodId || departments[index].hodId,
-        hodName,
-      };
-
-      console.log("Department updated:", departments[index]);
-      res.json(departments[index]);
-    } else {
-      res.status(404).json({ message: "Department not found" });
-    }
-  } catch (error) {
-    console.error("Update department error:", error);
-    res.status(500).json({ message: "Failed to update department" });
-  }
-});
-
-// Users route
-app.get("/api/users", async (req, res) => {
-  try {
-    console.log("GET /api/users called with query:", req.query);
-    const User = require("./models/User");
-    const { role } = req.query;
-    const filter = role ? { role } : {};
-    const users = await User.find(filter).select("-Password");
-    console.log(`Found ${users.length} users`);
-    res.status(200).json(users);
-  } catch (error) {
-    console.error("Get users error:", error);
+    console.error("Attendance report error:", error);
     res
       .status(500)
-      .json({ message: "Failed to fetch users", error: error.message });
+      .json({ message: error.message || "Failed to get attendance report" });
   }
 });
 
-console.log("✅ All routes registered\n");
+app.delete("/api/departments/:id", async (req, res) => {
+  try {
+    const Department = require("./models/Department");
+    const User = require("./models/User");
 
-// Test route
-app.get("/test", (req, res) => {
+    const department = await Department.findById(req.params.id);
+    if (!department) {
+      return res.status(404).json({ message: "Department not found" });
+    }
+
+    // Check if department has HOD assigned
+    if (department.hodId) {
+      const hod = await User.findById(department.hodId);
+      if (hod) {
+        hod.Department = null;
+        await hod.save();
+      }
+    }
+
+    // TODO: Check if department has faculty or students before deleting
+    await Department.findByIdAndDelete(req.params.id);
+
+    console.log("✅ Department deleted:", department.name);
+
+    res.status(200).json({ message: "Department deleted successfully" });
+  } catch (error) {
+    console.error("Delete department error:", error);
+    res
+      .status(500)
+      .json({ message: error.message || "Failed to delete department" });
+  }
+});
+
+// Reports endpoint
+app.get("/api/reports", async (req, res) => {
+  try {
+    const Event = require("./models/Event");
+    const User = require("./models/User");
+    const Participation = require("./models/Participation");
+
+    // Get statistics
+    const [totalEvents, totalUsers, totalParticipations] = await Promise.all([
+      Event.countDocuments(),
+      User.countDocuments({ role: { $ne: "admin" } }),
+      Participation.countDocuments(),
+    ]);
+
+    // Get events by status
+    const now = new Date();
+    const upcomingEvents = await Event.countDocuments({ date: { $gte: now } });
+    const completedEvents = await Event.countDocuments({ date: { $lt: now } });
+
+    // Get users by role
+    const usersByRole = await User.aggregate([
+      { $match: { role: { $ne: "admin" } } },
+      { $group: { _id: "$role", count: { $sum: 1 } } },
+    ]);
+
+    // Get events by department
+    const eventsByDepartment = await Event.aggregate([
+      { $group: { _id: "$Department", count: { $sum: 1 } } },
+    ]);
+
+    // Get recent events
+    const recentEvents = await Event.find()
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .select("title date location Department");
+
+    // Get participation stats
+    const participationStats = await Participation.aggregate([
+      { $group: { _id: "$status", count: { $sum: 1 } } },
+    ]);
+
+    res.status(200).json({
+      summary: {
+        totalEvents,
+        totalUsers,
+        totalParticipations,
+        upcomingEvents,
+        completedEvents,
+      },
+      usersByRole: usersByRole.reduce((acc, item) => {
+        acc[item._id] = item.count;
+        return acc;
+      }, {}),
+      eventsByDepartment: eventsByDepartment.map((item) => ({
+        department: item._id || "General",
+        count: item.count,
+      })),
+      recentEvents,
+      participationStats: participationStats.reduce((acc, item) => {
+        acc[item._id] = item.count;
+        return acc;
+      }, {}),
+    });
+  } catch (error) {
+    console.error("Get reports error:", error);
+    res.status(500).json({
+      message: "Failed to fetch report data",
+      error: error.message,
+    });
+  }
+});
+
+// Health check
+app.get("/health", (req, res) => {
   res.json({
-    message: "Backend is running!",
+    status: "running",
     mongodb:
-      mongoose.connection.readyState === 1 ? "Connected" : "Disconnected",
-    routes: {
-      auth: "/",
-      events: "/api/events",
-      tasks: "/api/tasks",
-      profile: "/api/profile",
-    },
+      mongoose.connection.readyState === 1 ? "connected" : "disconnected",
   });
 });
 
 // Error handler
 app.use((err, req, res, next) => {
-  console.error("\n=== ERROR ===");
-  console.error("Message:", err.message);
-  console.error("Stack:", err.stack);
-  console.error("=============\n");
+  console.error("Error:", err.message);
   res.status(500).json({
     message: err.message || "Something went wrong!",
     error: process.env.NODE_ENV === "development" ? err.stack : undefined,
@@ -474,7 +765,6 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-  console.log(`\n🚀 Server running on port ${PORT}`);
-  console.log(`📍 Test endpoint: http://localhost:${PORT}/test`);
-  console.log(`✅ Ready to accept requests\n`);
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📊 Environment: ${process.env.NODE_ENV}`);
 });

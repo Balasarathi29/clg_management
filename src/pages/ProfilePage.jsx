@@ -92,7 +92,7 @@ const ProfilePage = () => {
       console.log("Update data:", updateData);
 
       const response = await axios.put(
-        "http://localhost:5000/api/profile",
+        `http://localhost:5000/api/profile/${user.id}`,
         updateData,
         {
           headers: {
@@ -113,13 +113,10 @@ const ProfilePage = () => {
         Department: profile.Department,
         DOB: profile.DOB,
       };
-
       localStorage.setItem("user", JSON.stringify(updatedUser));
       setProfile(updatedUser);
-
       setMessage("✅ Profile updated successfully!");
       setEditing(false);
-
       setTimeout(() => setMessage(""), 3000);
     } catch (err) {
       console.error("Update error:", err);

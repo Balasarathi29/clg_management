@@ -1,33 +1,27 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   FiUsers,
   FiCalendar,
-  FiCheckSquare,
-  FiBriefcase,
-  FiX,
+  FiTrendingUp,
+  FiAward,
+  FiActivity,
+  FiEye,
+  FiMapPin,
 } from "react-icons/fi";
-
-const StatCard = ({ icon: IconComponent, title, value, color }) => (
-  <div className="bg-gray-800 p-6 rounded-lg shadow-lg">
-    <div className="flex items-center justify-between mb-2">
-      <IconComponent className={`w-8 h-8 ${color}`} />
-      <span className="text-3xl font-bold text-white">{value}</span>
-    </div>
-    <p className="text-gray-400 text-sm">{title}</p>
-  </div>
-);
+import API_URL from "../../config/api";
 
 const AdminDashboard = () => {
+  const navigate = useNavigate();
   const [stats, setStats] = useState({
     totalUsers: 0,
     totalEvents: 0,
-    pendingApprovals: 0,
-    departments: 6,
+    upcomingEvents: 0,
+    completedEvents: 0,
+    totalParticipations: 0,
   });
   const [recentEvents, setRecentEvents] = useState([]);
-  const [hodActivities, setHodActivities] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -37,52 +31,30 @@ const AdminDashboard = () => {
   const fetchDashboardData = async () => {
     try {
       const token = localStorage.getItem("token");
-
-      // Fetch events
-      const eventsRes = await axios.get(
-        "https://clg-managemt-backend.onrender.com/api/events",
-        {
+      const [eventsRes, usersRes] = await Promise.all([
+        axios.get(`${API_URL}/api/events`, {
           headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-
-      const events = eventsRes.data || [];
-
-      // Fetch users
-      const usersRes = await axios.get(
-        "https://clg-managemt-backend.onrender.com/api/users",
-        {
+        }),
+        axios.get(`${API_URL}/api/users`, {
           headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+        }),
+      ]);
 
-      const users = usersRes.data || [];
+      const events = eventsRes.data;
+      const now = new Date();
 
       setStats({
-        totalUsers: users.length,
+        totalUsers: usersRes.data.length,
         totalEvents: events.length,
-        pendingApprovals: events.filter((e) => e.status === "Pending").length,
-        departments: 6,
+        upcomingEvents: events.filter((e) => new Date(e.date) >= now).length,
+        completedEvents: events.filter((e) => new Date(e.date) < now).length,
+        totalParticipations: events.reduce(
+          (sum, e) => sum + (e.participants || 0),
+          0
+        ),
       });
 
       setRecentEvents(events.slice(0, 5));
-
-      // Generate HOD activity log
-      const hodActivityLog = events
-        .filter((e) => e.status === "Approved" || e.status === "Rejected")
-        .map((event) => ({
-          id: event._id,
-          action:
-            event.status === "Approved" ? "Approved Event" : "Rejected Event",
-          eventTitle: event.title,
-          department: event.departmentName || event.departmentId,
-          timestamp: event.updatedAt || event.createdAt,
-          status: event.status,
-        }))
-        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-        .slice(0, 5);
-
-      setHodActivities(hodActivityLog);
     } catch (err) {
       console.error("Failed to fetch dashboard data", err);
     } finally {
@@ -90,141 +62,188 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleViewEvent = (eventId) => {
+    navigate(`/events/${eventId}`);
+  };
+
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="text-white text-xl">Loading dashboard...</div>
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-16 h-16 border-4 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-gray-400 text-lg">Loading dashboard...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-white mb-6">Admin Dashboard</h1>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard
-          icon={FiUsers}
-          title="Total Users"
-          value={stats.totalUsers}
-          color="text-blue-400"
-        />
-        <StatCard
-          icon={FiCalendar}
-          title="Total Events"
-          value={stats.totalEvents}
-          color="text-teal-400"
-        />
-        <StatCard
-          icon={FiCheckSquare}
-          title="Pending Approvals"
-          value={stats.pendingApprovals}
-          color="text-yellow-400"
-        />
-        <StatCard
-          icon={FiBriefcase}
-          title="Departments"
-          value={stats.departments}
-          color="text-purple-400"
-        />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Events */}
-        <div className="bg-gray-800 p-6 rounded-lg shadow-lg">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-bold text-white">Recent Events</h2>
-            <Link
-              to="/events"
-              className="text-teal-400 hover:text-teal-300 text-sm"
-            >
-              View All →
-            </Link>
-          </div>
-
-          {recentEvents.length === 0 ? (
-            <p className="text-gray-400 text-center py-8">No events yet</p>
-          ) : (
-            <div className="space-y-3">
-              {recentEvents.map((event) => (
-                <div key={event._id} className="bg-gray-700 p-4 rounded-lg">
-                  <div className="flex justify-between items-start mb-2">
-                    <h3 className="text-white font-semibold">{event.title}</h3>
-                    <span
-                      className={`px-2 py-1 rounded text-xs font-semibold ${
-                        event.status === "Approved"
-                          ? "bg-green-900/50 text-green-300"
-                          : event.status === "Pending"
-                          ? "bg-yellow-900/50 text-yellow-300"
-                          : event.status === "Completed"
-                          ? "bg-blue-900/50 text-blue-300"
-                          : "bg-red-900/50 text-red-300"
-                      }`}
-                    >
-                      {event.status}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm text-gray-400">
-                    <span>{event.departmentName || event.departmentId}</span>
-                    <span>
-                      {event.date
-                        ? new Date(event.date).toLocaleDateString()
-                        : "TBD"}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold text-white mb-2">
+            Admin Dashboard
+          </h1>
+          <p className="text-gray-400">Welcome back! Here's your overview</p>
         </div>
 
-        {/* Recent HOD Activities */}
-        <div className="bg-gray-800 p-6 rounded-lg shadow-lg">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-bold text-white">HOD Activities</h2>
-            <span className="text-gray-400 text-sm">Recent Approvals</span>
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="bg-gradient-to-br from-blue-900/40 to-blue-800/40 backdrop-blur-sm rounded-2xl p-6 border border-blue-500/30 transform hover:scale-105 transition-all">
+            <div className="flex items-center justify-between mb-4">
+              <div className="bg-blue-500/20 p-3 rounded-xl">
+                <FiUsers className="text-blue-400 text-2xl" />
+              </div>
+              <span className="text-xs font-semibold text-blue-300 bg-blue-500/20 px-3 py-1 rounded-full">
+                Total
+              </span>
+            </div>
+            <h3 className="text-3xl font-bold text-white mb-1">
+              {stats.totalUsers}
+            </h3>
+            <p className="text-blue-300 text-sm">Total Users</p>
           </div>
 
-          {hodActivities.length === 0 ? (
-            <p className="text-gray-400 text-center py-8">
-              No HOD activity yet
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {hodActivities.map((activity) => (
-                <div key={activity.id} className="bg-gray-700 p-4 rounded-lg">
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      {activity.status === "Approved" ? (
-                        <FiCheckSquare className="text-green-400 w-4 h-4 flex-shrink-0" />
-                      ) : (
-                        <FiX className="text-red-400 w-4 h-4 flex-shrink-0" />
-                      )}
-                      <span
-                        className={`text-sm font-semibold ${
-                          activity.status === "Approved"
-                            ? "text-green-300"
-                            : "text-red-300"
-                        }`}
-                      >
-                        {activity.action}
-                      </span>
+          <div className="bg-gradient-to-br from-purple-900/40 to-purple-800/40 backdrop-blur-sm rounded-2xl p-6 border border-purple-500/30 transform hover:scale-105 transition-all">
+            <div className="flex items-center justify-between mb-4">
+              <div className="bg-purple-500/20 p-3 rounded-xl">
+                <FiCalendar className="text-purple-400 text-2xl" />
+              </div>
+              <span className="text-xs font-semibold text-purple-300 bg-purple-500/20 px-3 py-1 rounded-full">
+                All
+              </span>
+            </div>
+            <h3 className="text-3xl font-bold text-white mb-1">
+              {stats.totalEvents}
+            </h3>
+            <p className="text-purple-300 text-sm">Total Events</p>
+          </div>
+
+          <div className="bg-gradient-to-br from-teal-900/40 to-teal-800/40 backdrop-blur-sm rounded-2xl p-6 border border-teal-500/30 transform hover:scale-105 transition-all">
+            <div className="flex items-center justify-between mb-4">
+              <div className="bg-teal-500/20 p-3 rounded-xl">
+                <FiTrendingUp className="text-teal-400 text-2xl" />
+              </div>
+              <span className="text-xs font-semibold text-teal-300 bg-teal-500/20 px-3 py-1 rounded-full">
+                Upcoming
+              </span>
+            </div>
+            <h3 className="text-3xl font-bold text-white mb-1">
+              {stats.upcomingEvents}
+            </h3>
+            <p className="text-teal-300 text-sm">Upcoming Events</p>
+          </div>
+
+          <div className="bg-gradient-to-br from-amber-900/40 to-amber-800/40 backdrop-blur-sm rounded-2xl p-6 border border-amber-500/30 transform hover:scale-105 transition-all">
+            <div className="flex items-center justify-between mb-4">
+              <div className="bg-amber-500/20 p-3 rounded-xl">
+                <FiAward className="text-amber-400 text-2xl" />
+              </div>
+              <span className="text-xs font-semibold text-amber-300 bg-amber-500/20 px-3 py-1 rounded-full">
+                Total
+              </span>
+            </div>
+            <h3 className="text-3xl font-bold text-white mb-1">
+              {stats.totalParticipations}
+            </h3>
+            <p className="text-amber-300 text-sm">Participations</p>
+          </div>
+        </div>
+
+        {/* Recent Events */}
+        <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-gray-700/50 overflow-hidden">
+          <div className="bg-gradient-to-r from-gray-700/50 to-gray-800/50 px-6 py-4 border-b border-gray-700">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <FiActivity className="text-teal-400 text-xl" />
+                <h2 className="text-xl font-bold text-white">Recent Events</h2>
+              </div>
+              <button
+                onClick={() => navigate("/events")}
+                className="text-teal-400 hover:text-teal-300 text-sm font-medium transition-colors"
+              >
+                View All Events →
+              </button>
+            </div>
+          </div>
+
+          <div className="p-6">
+            {recentEvents.length === 0 ? (
+              <div className="text-center py-12">
+                <FiCalendar className="text-gray-600 text-5xl mx-auto mb-4" />
+                <p className="text-gray-400 mb-4">No events yet</p>
+                <button
+                  onClick={() => navigate("/events/new")}
+                  className="inline-flex items-center gap-2 bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white px-6 py-3 rounded-xl font-semibold shadow-lg transition-all"
+                >
+                  <FiCalendar />
+                  Create First Event
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {recentEvents.map((event, index) => (
+                  <div
+                    key={event._id || index}
+                    onClick={() => handleViewEvent(event._id)}
+                    className="bg-gray-900/50 rounded-xl p-4 border border-gray-700/50 hover:border-teal-500/50 transition-all cursor-pointer group"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-white font-semibold mb-2 group-hover:text-teal-400 transition-colors line-clamp-1">
+                          {event.title}
+                        </h3>
+                        <div className="flex flex-wrap gap-3 text-sm">
+                          <span className="text-gray-400 flex items-center gap-1">
+                            <FiCalendar className="text-teal-400 flex-shrink-0" />
+                            {new Date(event.date).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            })}
+                          </span>
+                          {event.location && (
+                            <span className="text-gray-400 flex items-center gap-1">
+                              <FiMapPin className="text-teal-400 flex-shrink-0" />
+                              <span className="truncate">{event.location}</span>
+                            </span>
+                          )}
+                          {event.Department && (
+                            <span className="bg-teal-500/20 text-teal-400 px-3 py-1 rounded-full text-xs font-semibold">
+                              {event.Department}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
+                            new Date(event.date) >= new Date()
+                              ? "bg-green-500/20 text-green-400 border border-green-500/30"
+                              : "bg-gray-500/20 text-gray-400 border border-gray-500/30"
+                          }`}
+                        >
+                          {new Date(event.date) >= new Date()
+                            ? "Upcoming"
+                            : "Completed"}
+                        </span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewEvent(event._id);
+                          }}
+                          className="p-2 bg-teal-500/20 hover:bg-teal-500/30 text-teal-400 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                        >
+                          <FiEye />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                  <h3 className="text-white font-medium text-sm mb-1 ml-6">
-                    {activity.eventTitle}
-                  </h3>
-                  <div className="flex items-center justify-between text-xs text-gray-400 ml-6">
-                    <span>{activity.department}</span>
-                    <span>
-                      {new Date(activity.timestamp).toLocaleDateString()}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

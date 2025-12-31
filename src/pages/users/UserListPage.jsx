@@ -1,14 +1,23 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { Link } from "react-router-dom";
-import { FiSearch, FiUserPlus } from "react-icons/fi";
+import { useNavigate } from "react-router-dom";
+import {
+  FiPlus,
+  FiEdit2,
+  FiTrash2,
+  FiUsers,
+  FiSearch,
+  FiFilter,
+} from "react-icons/fi";
+import API_URL from "../../config/api";
 
 const UserListPage = () => {
+  const navigate = useNavigate();
   const [users, setUsers] = useState([]);
   const [filteredUsers, setFilteredUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterRole, setFilterRole] = useState("all");
+  const [roleFilter, setRoleFilter] = useState("all");
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
 
   useEffect(() => {
@@ -17,7 +26,7 @@ const UserListPage = () => {
 
   useEffect(() => {
     filterUsers();
-  }, [searchTerm, filterRole, users]);
+  }, [searchTerm, roleFilter, users]);
 
   const fetchUsers = async () => {
     try {
@@ -52,8 +61,8 @@ const UserListPage = () => {
     let filtered = [...users];
 
     // Filter by role
-    if (filterRole !== "all") {
-      filtered = filtered.filter((u) => u.role === filterRole);
+    if (roleFilter !== "all") {
+      filtered = filtered.filter((u) => u.role === roleFilter);
     }
 
     // Filter by search term
@@ -69,182 +78,217 @@ const UserListPage = () => {
     setFilteredUsers(filtered);
   };
 
-  const handleDelete = async (userId) => {
-    if (
-      !window.confirm(
-        "Are you sure you want to delete this user? This action cannot be undone."
-      )
-    ) {
+  const handleDelete = async (userId, userEmail) => {
+    if (!window.confirm(`Are you sure you want to delete ${userEmail}?`))
       return;
-    }
 
     try {
       const token = localStorage.getItem("token");
-      await axios.delete(`http://localhost:5000/api/users/${userId}`, {
+      await axios.delete(`${API_URL}/api/users/${userId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-
-      alert("User deleted successfully");
-      fetchUsers(); // Refresh the list
+      alert("User deleted successfully!");
+      fetchUsers();
     } catch (err) {
-      console.error("Failed to delete user", err);
+      console.error("Delete error:", err);
       alert(err.response?.data?.message || "Failed to delete user");
     }
   };
 
+  const getRoleBadge = (role) => {
+    const badges = {
+      hod: "bg-purple-500/20 text-purple-400 border-purple-500/30",
+      faculty: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+      student: "bg-green-500/20 text-green-400 border-green-500/30",
+    };
+    return badges[role] || "bg-gray-500/20 text-gray-400 border-gray-500/30";
+  };
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-400"></div>
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-16 h-16 border-4 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-gray-400 text-lg">Loading users...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-white">User Management</h1>
-        {currentUser.role === "admin" && (
-          <Link
-            to="/users/create"
-            className="bg-teal-500 hover:bg-teal-600 text-gray-900 px-6 py-3 rounded-lg font-semibold transition"
-          >
-            + Create HOD Account
-          </Link>
-        )}
-      </div>
-
-      {/* Search and Filter */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="flex-1">
-          <input
-            type="text"
-            placeholder="Search by name or email..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-4 py-2 bg-gray-700 text-white border border-gray-600 rounded-lg focus:outline-none focus:border-teal-500"
-          />
-        </div>
-        <div className="w-full sm:w-48">
-          <select
-            value={filterRole}
-            onChange={(e) => setFilterRole(e.target.value)}
-            className="w-full px-4 py-2 bg-gray-700 text-white border border-gray-600 rounded-lg focus:outline-none focus:border-teal-500"
-          >
-            <option value="all">All Roles</option>
-            {currentUser.role === "hod" ? (
-              <>
-                <option value="faculty">Faculty</option>
-                <option value="student">Student</option>
-              </>
-            ) : (
-              <>
-                <option value="admin">Admin</option>
-                <option value="hod">HOD</option>
-                <option value="faculty">Faculty</option>
-                <option value="student">Student</option>
-              </>
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="bg-gradient-to-br from-teal-500 to-cyan-600 p-3 rounded-xl shadow-lg">
+                <FiUsers className="text-white text-3xl" />
+              </div>
+              <div>
+                <h1 className="text-4xl font-bold text-white">
+                  User Management
+                </h1>
+                <p className="text-gray-400 mt-1">
+                  Manage HODs, Faculty, and Students
+                </p>
+              </div>
+            </div>
+            {currentUser.role === "admin" && (
+              <button
+                onClick={() => navigate("/users/create")}
+                className="flex items-center gap-2 bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all transform hover:scale-105"
+              >
+                <FiPlus className="text-xl" />
+                Create HOD
+              </button>
             )}
-          </select>
+          </div>
         </div>
-      </div>
 
-      {/* Users Table */}
-      <div className="bg-gray-800 rounded-lg shadow-lg overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-700 bg-gray-900">
-                <th className="py-4 px-6 text-left text-gray-300 font-semibold">
-                  Name
-                </th>
-                <th className="py-4 px-6 text-left text-gray-300 font-semibold">
-                  Email
-                </th>
-                <th className="py-4 px-6 text-left text-gray-300 font-semibold">
-                  Role
-                </th>
-                <th className="py-4 px-6 text-left text-gray-300 font-semibold">
-                  Department
-                </th>
-                {currentUser.role === "admin" && (
-                  <th className="py-4 px-6 text-left text-gray-300 font-semibold">
-                    Actions
-                  </th>
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {filteredUsers.map((user) => {
-                const isHOD = user.role === "hod";
-                const isAdmin = user.role === "admin";
+        {/* Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="bg-gradient-to-br from-purple-900/40 to-purple-800/40 backdrop-blur-sm rounded-2xl p-6 border border-purple-500/30">
+            <p className="text-purple-300 text-sm font-medium">Total Users</p>
+            <p className="text-white text-3xl font-bold mt-1">{users.length}</p>
+          </div>
+          <div className="bg-gradient-to-br from-blue-900/40 to-blue-800/40 backdrop-blur-sm rounded-2xl p-6 border border-blue-500/30">
+            <p className="text-blue-300 text-sm font-medium">HODs</p>
+            <p className="text-white text-3xl font-bold mt-1">
+              {users.filter((u) => u.role === "hod").length}
+            </p>
+          </div>
+          <div className="bg-gradient-to-br from-cyan-900/40 to-cyan-800/40 backdrop-blur-sm rounded-2xl p-6 border border-cyan-500/30">
+            <p className="text-cyan-300 text-sm font-medium">Faculty</p>
+            <p className="text-white text-3xl font-bold mt-1">
+              {users.filter((u) => u.role === "faculty").length}
+            </p>
+          </div>
+          <div className="bg-gradient-to-br from-green-900/40 to-green-800/40 backdrop-blur-sm rounded-2xl p-6 border border-green-500/30">
+            <p className="text-green-300 text-sm font-medium">Students</p>
+            <p className="text-white text-3xl font-bold mt-1">
+              {users.filter((u) => u.role === "student").length}
+            </p>
+          </div>
+        </div>
 
-                return (
-                  <tr
-                    key={user._id}
-                    className="border-b border-gray-700 hover:bg-gray-700/50 transition"
-                  >
-                    <td className="py-4 px-6 text-white">
-                      <div className="flex items-center gap-2">
-                        {user.First_name} {user.Last_name}
-                        {isHOD && (
-                          <span className="px-2 py-1 bg-blue-600 text-white text-xs rounded font-semibold">
-                            HOD
+        {/* Search & Filter */}
+        <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-6 border border-gray-700/50 mb-6">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1 relative">
+              <FiSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 text-xl" />
+              <input
+                type="text"
+                placeholder="Search by name, email, or department..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-12 pr-4 py-3 bg-gray-900/50 text-white border border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
+              />
+            </div>
+            <div className="relative">
+              <FiFilter className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 text-xl" />
+              <select
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value)}
+                className="pl-12 pr-8 py-3 bg-gray-900/50 text-white border border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all appearance-none cursor-pointer min-w-[200px]"
+              >
+                <option value="all">All Roles</option>
+                <option value="hod">HODs</option>
+                <option value="faculty">Faculty</option>
+                <option value="student">Students</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Users Table */}
+        {filteredUsers.length === 0 ? (
+          <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-12 border border-gray-700/50 text-center">
+            <FiUsers className="text-gray-400 text-6xl mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-white mb-2">
+              No users found
+            </h3>
+            <p className="text-gray-400">Try adjusting your search or filter</p>
+          </div>
+        ) : (
+          <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-gray-700/50 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-700/50 border-b border-gray-600">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-300">
+                      Name
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-300">
+                      Email
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-300">
+                      Role
+                    </th>
+                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-300">
+                      Department
+                    </th>
+                    <th className="px-6 py-4 text-right text-sm font-semibold text-gray-300">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-700">
+                  {filteredUsers.map((user) => (
+                    <tr
+                      key={user._id}
+                      className="hover:bg-gray-700/30 transition-colors"
+                    >
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center text-white font-semibold">
+                            {user.First_name?.[0]}
+                            {user.Last_name?.[0]}
+                          </div>
+                          <span className="text-white font-medium">
+                            {user.First_name} {user.Last_name}
                           </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-4 px-6 text-gray-300">{user.Email}</td>
-                    <td className="py-4 px-6">
-                      <span
-                        className={`px-3 py-1 rounded text-xs font-semibold ${
-                          user.role === "admin"
-                            ? "bg-purple-900/50 text-purple-300"
-                            : user.role === "hod"
-                            ? "bg-blue-900/50 text-blue-300"
-                            : user.role === "faculty"
-                            ? "bg-green-900/50 text-green-300"
-                            : "bg-gray-900/50 text-gray-300"
-                        }`}
-                      >
-                        {user.role}
-                      </span>
-                    </td>
-                    <td className="py-4 px-6 text-gray-300">
-                      {user.Department}
-                    </td>
-                    {currentUser.role === "admin" && (
-                      <td className="py-4 px-6">
-                        <div className="flex gap-2 items-center">
-                          {isAdmin ? (
-                            <span className="text-gray-500 text-sm italic">
-                              System Account
-                            </span>
-                          ) : (
-                            <button
-                              onClick={() => handleDelete(user._id)}
-                              className="text-red-400 hover:text-red-300 transition font-semibold"
-                            >
-                              Delete
-                            </button>
-                          )}
                         </div>
                       </td>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {filteredUsers.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-gray-400">
-              {searchTerm || filterRole !== "all"
-                ? "No users found matching your filters"
-                : "No users found"}
-            </p>
+                      <td className="px-6 py-4 text-gray-300">{user.Email}</td>
+                      <td className="px-6 py-4">
+                        <span
+                          className={`px-3 py-1 rounded-lg text-xs font-semibold border ${getRoleBadge(
+                            user.role
+                          )}`}
+                        >
+                          {user.role?.toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-gray-300">
+                        {user.Department || "N/A"}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => {
+                              console.log("Edit clicked for user:", user._id);
+                              navigate(`/users/edit/${user._id}`);
+                            }}
+                            className="p-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg transition-all"
+                            title="Edit User"
+                          >
+                            <FiEdit2 />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(user._id, user.Email)}
+                            className="p-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg transition-all"
+                            title="Delete User"
+                          >
+                            <FiTrash2 />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>

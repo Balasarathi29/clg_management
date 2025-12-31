@@ -2,8 +2,8 @@ import React, { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
-// set backend base URL to Render deployment
-axios.defaults.baseURL = "https://clg-managemt-backend.onrender.com";
+// set backend base URL to localhost
+axios.defaults.baseURL = "http://localhost:5000";
 axios.defaults.headers.post["Content-Type"] = "application/json";
 
 const LoginForm = () => {
@@ -73,7 +73,7 @@ const LoginForm = () => {
     };
 
     try {
-      const res = await axios.post("/signup", userData);
+      const res = await axios.post("/api/auth/register", userData);
       showModal(
         "Account Created",
         res.data.message || "Student account created successfully!"
@@ -98,7 +98,7 @@ const LoginForm = () => {
     };
 
     try {
-      const res = await axios.post("/login", loginData);
+      const res = await axios.post("/api/auth/login", loginData);
 
       console.log("Login response:", res.data);
 
@@ -183,6 +183,7 @@ const LoginForm = () => {
                   id="login-username"
                   name="login-username"
                   required
+                  autoComplete="username email"
                   className="input-style w-full p-3 border rounded-lg transition duration-300"
                 />
               </div>
@@ -199,6 +200,7 @@ const LoginForm = () => {
                   id="login-password"
                   name="login-password"
                   required
+                  autoComplete="current-password"
                   className="input-style w-full p-3 border rounded-lg transition duration-300"
                 />
               </div>
@@ -288,6 +290,7 @@ const LoginForm = () => {
                   name="email"
                   placeholder="e.g., student@college.edu"
                   required
+                  autoComplete="email"
                   className="input-style w-full p-3 border rounded-lg"
                 />
               </div>
@@ -361,6 +364,7 @@ const LoginForm = () => {
                   name="signup-password"
                   required
                   minLength={6}
+                  autoComplete="new-password"
                   className="input-style w-full p-3 border rounded-lg"
                 />
                 <p className="text-xs text-gray-400 mt-1">
@@ -381,6 +385,7 @@ const LoginForm = () => {
                   name="confirm-password"
                   required
                   minLength={6}
+                  autoComplete="new-password"
                   className="input-style w-full p-3 border rounded-lg"
                 />
               </div>
@@ -437,6 +442,7 @@ const LoginForm = () => {
                   id="forgot-email"
                   name="forgot-email"
                   required
+                  autoComplete="email"
                   className="input-style w-full p-3 border rounded-lg transition duration-300"
                 />
               </div>

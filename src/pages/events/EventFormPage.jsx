@@ -30,6 +30,12 @@ const EventFormPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Get user info
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
+  const userRole = user.role;
+  const isAdmin = userRole === "admin";
+  const userDepartment = user.Department;
+
   useEffect(() => {
     fetchDepartments();
     if (isEdit) {
@@ -66,11 +72,11 @@ const EventFormPage = () => {
       const res = await axios.get(`http://localhost:5000/api/events/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const eventData = res.data;
+
+      // For faculty, set their department automatically
       setFormData({
-        ...eventData,
-        date: eventData.date?.split("T")[0] || "",
-        time: eventData.time || "",
+        ...res.data,
+        Department: isAdmin ? res.data.Department : userDepartment,
       });
     } catch (err) {
       console.error("Failed to fetch event", err);
@@ -83,57 +89,29 @@ const EventFormPage = () => {
     setLoading(true);
     setError("");
 
-    if (
-      !formData.title ||
-      !formData.description ||
-      !formData.date ||
-      !formData.time ||
-      !formData.venue ||
-      !formData.maxParticipants ||
-      !formData.departmentId
-    ) {
-      setError("Please fill in all required fields");
-      setLoading(false);
-      return;
-    }
-
     try {
       const token = localStorage.getItem("token");
-      const user = JSON.parse(localStorage.getItem("user") || "{}");
-
-      // Find department name from departments array
-      const selectedDept = departments.find(
-        (d) => d.id === formData.departmentId
-      );
-
+      // For faculty, always use their department
       const eventData = {
         ...formData,
-        createdBy: user.id,
-        createdByName: `${user.First_name} ${user.Last_name}`,
-        departmentName: selectedDept?.name || formData.departmentId,
-        Department: selectedDept?.name || formData.departmentId, // Add this field too
+        Department: isAdmin ? formData.Department : userDepartment,
+        location: formData.venue,
+        createdBy: user._id,
       };
-
-      console.log("Submitting event with data:", eventData);
-
-      const url = isEdit
-        ? `http://localhost:5000/api/events/${id}`
-        : "http://localhost:5000/api/events";
-
-      const method = isEdit ? "put" : "post";
-
-      const response = await axios[method](url, eventData, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      console.log("Event saved:", response.data);
+      const res = isEdit
+        ? await axios.put(`http://localhost:5000/api/events/${id}`, eventData, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+        : await axios.post(`http://localhost:5000/api/events`, eventData, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+      alert(
+        res.data.message ||
+          `Event ${isEdit ? "updated" : "created"} successfully!`
+      );
       navigate("/events");
     } catch (err) {
-      console.error("Event save error:", err);
-      console.error("Error response:", err.response?.data);
+      console.error("Submit error:", err);
       setError(err.response?.data?.message || "Failed to save event");
     } finally {
       setLoading(false);
@@ -266,25 +244,49 @@ const EventFormPage = () => {
               </div>
             </div>
 
+            {/* Department Field */}
             <div>
-              <label className="block text-gray-300 text-sm font-semibold mb-2">
-                Department *
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Department <span className="text-red-400">*</span>
               </label>
-              <select
-                value={formData.departmentId}
-                onChange={(e) =>
-                  setFormData({ ...formData, departmentId: e.target.value })
-                }
-                required
-                className="w-full px-4 py-3 bg-gray-700 text-white border border-gray-600 rounded-lg focus:outline-none focus:border-teal-400"
-              >
-                <option value="">Select Department</option>
-                {departments.map((dept) => (
-                  <option key={dept.id} value={dept.id}>
-                    {dept.name}
+              {isAdmin ? (
+                <select
+                  value={formData.Department}
+                  onChange={(e) =>
+                    setFormData({ ...formData, Department: e.target.value })
+                  }
+                  required
+                  className="w-full px-4 py-3 bg-gray-900/50 text-white border border-gray-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all appearance-none cursor-pointer"
+                >
+                  <option value="">Select Department</option>
+                  <option value="Computer Science">Computer Science</option>
+                  <option value="Electrical Engineering">
+                    Electrical Engineering
                   </option>
-                ))}
-              </select>
+                  <option value="Mechanical Engineering">
+                    Mechanical Engineering
+                  </option>
+                  <option value="Civil Engineering">Civil Engineering</option>
+                  <option value="Information Technology">
+                    Information Technology
+                  </option>
+                  <option value="Electronics & Communication">
+                    Electronics & Communication
+                  </option>
+                </select>
+              ) : (
+                <div className="w-full px-4 py-3 bg-gray-700/30 text-gray-300 border border-gray-600/50 rounded-xl flex items-center justify-between">
+                  <span className="font-medium">{userDepartment}</span>
+                  <span className="text-xs bg-gray-600/50 px-3 py-1 rounded-full">
+                    Your Department
+                  </span>
+                </div>
+              )}
+              {!isAdmin && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Faculty can only create events in their assigned department
+                </p>
+              )}
             </div>
           </div>
 

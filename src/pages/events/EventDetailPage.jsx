@@ -150,7 +150,10 @@ const EventDetailPage = () => {
   }
 
   const canEdit = user.role === "faculty" || user.role === "admin";
-  const isOwner = event.createdBy === user.id;
+  const isOwner =
+    event.createdBy === user._id ||
+    event.createdBy === user.id ||
+    (event.createdBy && event.createdBy._id === user._id);
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -238,7 +241,7 @@ const EventDetailPage = () => {
               <FiMapPin className="text-teal-400 w-5 h-5" />
               <div>
                 <p className="text-sm text-gray-400">Venue</p>
-                <p className="font-semibold">{event.venue}</p>
+                <p className="font-semibold">{event.venue || event.location}</p>
               </div>
             </div>
 
@@ -247,16 +250,17 @@ const EventDetailPage = () => {
               <div>
                 <p className="text-sm text-gray-400">Participants</p>
                 <p className="font-semibold">
-                  {event.currentParticipants || 0} / {event.maxParticipants}
+                  {typeof event.currentParticipants === "number"
+                    ? event.currentParticipants
+                    : event.participants || 0}
+                  {event.maxParticipants ? ` / ${event.maxParticipants}` : ""}
                 </p>
               </div>
             </div>
           </div>
 
           <div className="mb-6">
-            <h3 className="text-lg font-semibold text-white mb-2">
-              Description
-            </h3>
+            <h3 className="text-lg font-semibold text-white mb-2">Details</h3>
             <p className="text-gray-300">{event.description}</p>
           </div>
 
@@ -264,13 +268,21 @@ const EventDetailPage = () => {
             <div>
               <p className="text-sm text-gray-400">Department</p>
               <p className="text-white font-semibold">
-                {event.departmentName || event.departmentId}
+                {event.departmentName ||
+                  event.Department ||
+                  event.departmentId ||
+                  "-"}
               </p>
             </div>
             <div>
               <p className="text-sm text-gray-400">Created By</p>
               <p className="text-white font-semibold">
-                {event.createdByName || "Unknown"}
+                {event.createdByName ||
+                  (event.createdBy && event.createdBy.First_name
+                    ? `${event.createdBy.First_name} ${event.createdBy.Last_name}`
+                    : event.createdBy && event.createdBy.Email
+                    ? event.createdBy.Email
+                    : "Unknown")}
               </p>
             </div>
           </div>

@@ -36,13 +36,14 @@ const CreateFacultyPage = () => {
     try {
       const token = localStorage.getItem("token");
       const res = await axios.post(
-        "http://localhost:5000/hod/create-faculty",
+        "http://localhost:5000/api/users/create-faculty",
         {
           First_name: formData.First_name,
           Last_name: formData.Last_name,
           Email: formData.Email,
           Password: formData.Password,
           Department: user.Department,
+          hodId: user.id,
         },
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -193,27 +194,6 @@ const CreateFacultyPage = () => {
             <FiUserPlus /> {loading ? "Creating..." : "Create Faculty Account"}
           </button>
         </form>
-      </div>
-
-      {/* Login Credentials Info */}
-      <div className="mt-6 bg-blue-900/30 border border-blue-500/50 p-6 rounded-lg">
-        <h3 className="text-lg font-bold text-blue-300 mb-3">
-          📋 Default Login Credentials for HODs
-        </h3>
-        <div className="space-y-2 text-sm text-gray-300">
-          <p>
-            <strong>Admin:</strong> admin@college.edu / Admin@123
-          </p>
-          <p>
-            <strong>CS HOD:</strong> hod.cs@college.edu / HOD@CS123
-          </p>
-          <p>
-            <strong>EE HOD:</strong> hod.ee@college.edu / HOD@EE123
-          </p>
-          <p>
-            <strong>ME HOD:</strong> hod.me@college.edu / HOD@ME123
-          </p>
-        </div>
       </div>
     </div>
   );
